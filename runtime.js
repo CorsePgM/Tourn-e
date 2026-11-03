@@ -109,7 +109,7 @@
     Les données ne sont que dans ce téléphone : pensez à exporter une sauvegarde chaque semaine (Drive, Gmail…).</span>
     <div class="formbtns" style="justify-content:flex-start">
       <button class="btn ${late ? '' : 'ghost'}" data-act="pwa-export">Exporter une sauvegarde</button>
-      <label class="btn ghost" style="cursor:pointer">Importer une sauvegarde<input type="file" id="pwa_import" accept="application/json,.json" hidden></label>
+      <label class="btn ghost" style="cursor:pointer">Importer une sauvegarde<input type="file" id="pwa_import" hidden></label>
     </div></section>`;
   };
   const toastMsg = m => { const t = document.getElementById('toast'); if(!t) return; t.textContent = m; t.hidden = false; clearTimeout(toastMsg.t); toastMsg.t = setTimeout(() => t.hidden = true, 3500); };

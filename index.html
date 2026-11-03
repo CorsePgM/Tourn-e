@@ -167,6 +167,7 @@ textarea{resize:vertical;min-height:60px}
 .daylist dd{margin:0;display:flex;flex-wrap:wrap;gap:4px 6px;min-width:0}
 .mini{display:inline-flex;align-items:center;gap:5px;border-radius:7px;padding:2px 7px;background:var(--surface-2);border:1px solid var(--line);font-size:.84rem}
 .bil{color:var(--warn);font-weight:700;font-size:.85rem}
+.card.rempl{gap:8px}
 .bhsel{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:4px 6px;font-weight:700;font-variant-numeric:tabular-nums;font-size:.9rem;width:auto}
 .hdrrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .bilbtn{border:0;border-radius:999px;padding:6px 12px;font-weight:800;font-size:.85rem;background:var(--bad);color:#fff}
@@ -338,8 +339,8 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="03/11 22:36"</script>
-<script src="runtime.js?v=03112236"></script>
+<script>window.__BUILD="03/11 22:43"</script>
+<script src="runtime.js?v=03112243"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -423,7 +424,7 @@ const monday=s=>addDays(s,-wdIdx(s));
 
 /* ---------- état ---------- */
 const S={tab:'jour',date:today(),week:monday(today()),tournee:'Toutes',vuFilter:'tous',search:'',pfilter:'Toutes',
-  patients:{},soins:{},bilans:{},taches:{},config:{},vus:{},dayExists:false,dayH:{},dayT:{},rs:null,rn:0,rollTo:null,_rrs:null,
+  patients:{},soins:{},bilans:{},taches:{},config:{},vus:{},dayExists:false,dayH:{},dayT:{},dayR:{},rs:null,rn:0,rollTo:null,_rrs:null,
   loaded:new Set(),db:null,dbState:'loading',canWrite:true};
 const store={get(k){try{return localStorage.getItem('ti.'+k)}catch(e){return null}},set(k,v){try{localStorage.setItem('ti.'+k,v)}catch(e){}}};
 ['tournee','vuFilter'].forEach(k=>{const v=store.get(k);if(v)S[k]=v});
@@ -746,6 +747,9 @@ function vJour(){
   if(S.canWrite) h+='<div class="exportcta"><button class="btn ghost addimp" data-act="addimprevu">＋ Ajouter un passage imprévu</button></div>';
   if(all.length&&S.canWrite) h+='<div class="hint">Touchez la case pour « vu », restez appuyé pour « absent ».</div>';
   h+=sum;
+  {const r=(S.dayR||{})[S.date]||{};
+   h+=`<section class="card rempl"><label class="checkrow"><input type="checkbox" id="f_remplon" ${r.on?'checked':''} ${S.canWrite?'':'disabled'}><span class="t"><b>Journée faite par une remplaçante</b></span></label>
+     ${r.on?`<label class="field"><span>Prénom de la remplaçante</span><input type="text" id="f_remplnom" value="${esc(r.prenom||'')}" placeholder="Ex. Julie" autocomplete="off" autocapitalize="words" ${S.canWrite?'':'disabled'}></label>`:''}</section>`;}
   h+=exportCta();
   return h;
 }
@@ -982,10 +986,11 @@ function openExport(){const to=today();M={mode:'export',from:monday(to),to,days:
 async function loadExportDays(){
   const m=M; m.days=null; m.msg=null; drawModal();
   const map={};
-  Object.keys(SV.days).forEach(d=>{if(d>=m.from&&d<=m.to)map[d]=SV.days[d]});
-  try{const q=await S.db.collection('passages').where('date','>=',m.from).where('date','<=',m.to).get();q.docs.forEach(d=>{const x=d.data()||{};map[x.date||d.id]=x.vus||{}})}catch(e){}
+  const rmap={};
+  Object.keys(SV.days).forEach(d=>{if(d>=m.from&&d<=m.to){map[d]=SV.days[d];rmap[d]=(SV.dayR||{})[d]||null}});
+  try{const q=await S.db.collection('passages').where('date','>=',m.from).where('date','<=',m.to).get();q.docs.forEach(d=>{const x=d.data()||{};map[x.date||d.id]=x.vus||{};rmap[x.date||d.id]=x.rempl||null})}catch(e){}
   if(M!==m) return;
-  m.vus=map; m.days=[]; m.checked={};
+  m.vus=map; m.rempl=rmap; m.days=[]; m.checked={};
   for(let d=m.from;d<=m.to;d=addDays(d,1)){
     const v=visitesDu(d,'Toutes'),vu=map[d]||{};
     const nVu=v.filter(x=>vu[x.id]===true).length,nAbs=v.filter(x=>vu[x.id]==='absent').length;
@@ -1000,7 +1005,7 @@ function formExport(){
   return `<div class="f" style="display:flex;flex-direction:column;gap:12px">
     <div class="grid2">${fld('f_efrom','Du',m.from,'date')}${fld('f_eto','Au',m.to,'date')}</div>
     <div class="card" style="gap:6px"><h2>Journées à envoyer <span><button class="linkbtn" data-act="expall">Tout</button> · <button class="linkbtn" data-act="expnone">Aucun</button></span></h2>${list}</div>
-    <small style="color:var(--muted)">Le fichier contient un résumé puis un onglet par jour, avec uniquement les passages cochés « vu » et les bilans faits.</small>
+    <small style="color:var(--muted)">Un onglet par jour, avec uniquement les passages cochés « vu », les bilans faits et, s'il y a lieu, la remplaçante.</small>
     ${m.msg?`<div class="${m.msg.ok?'okmsg':'err'}">${esc(m.msg.t)}</div>`:''}
     <div class="formbtns"><button class="btn ghost" data-act="expdl" ${m.busy?'disabled':''}>Télécharger le fichier</button><button class="btn" data-act="expsend" ${m.busy?'disabled':''}>${m.busy?'Envoi en cours…':'Envoyer par mail'}</button></div></div>`;
 }
@@ -1008,19 +1013,16 @@ function selectedDays(){return (M.days||[]).filter(x=>M.checked[x.d]).map(x=>x.d
 function buildWorkbook(dates){
   /* seuls les passages cochés « vu » et les bilans faits sont exportés */
   const X=window.XLSX, wb=X.utils.book_new(), sheets=[];
-  const sum=[['Date','Jour','Passages faits','Bilans faits']];
   dates.forEach(d=>{
     const vu=M.vus[d]||{},v=visitesDu(d,'Toutes').filter(x=>vu[x.id]===true);
     const rows=v.map(x=>[x.s.creneau||'',fullName(x.p),x.p.tournee||'',(x.s.soins||[]).filter(Boolean).join(' + '),x.s.exceptionnel?'Exceptionnel':'Habituel']);
     const bl=Object.values(S.bilans).filter(b=>b.date===d&&b.fait);
     bl.forEach(b=>{const p=S.patients[b.patientId]||{};rows.push([b.heure||'',fullName(p),tourOf(b.patientId,d)||'','Bilan'+(b.detail?' : '+b.detail:''),'Bilan'])});
-    sum.push([fmtShort(d),parse(d).toLocaleDateString('fr-FR',{weekday:'long'}),v.length,bl.length]);
-    const ws=X.utils.aoa_to_sheet([['Tournée du '+fmtLong(d)+' '+parse(d).getFullYear()],[],['Créneau','Patient','Tournée','Soins','Type'],...rows]);
+    const rp=(M.rempl||{})[d];
+    const ws=X.utils.aoa_to_sheet([['Tournée du '+fmtLong(d)+' '+parse(d).getFullYear()],[rp&&rp.on?'Faite par la remplaçante : '+(rp.prenom||'(prénom non indiqué)'):''],['Créneau','Patient','Tournée','Soins','Type'],...rows]);
     ws['!cols']=[8,24,10,40,12].map(w=>({wch:w}));
     sheets.push([ws,d+' '+parse(d).toLocaleDateString('fr-FR',{weekday:'short'}).replace('.','')]);
   });
-  const s0=X.utils.aoa_to_sheet(sum); s0['!cols']=[10,10,15,13].map(w=>({wch:w}));
-  X.utils.book_append_sheet(wb,s0,'Résumé');
   sheets.forEach(([ws,n])=>X.utils.book_append_sheet(wb,ws,n.slice(0,31)));
   return wb;
 }
@@ -1051,7 +1053,7 @@ async function sendExport(){
   M.busy=true;M.msg=null;drawModal();
   try{
     var RR=await mcp.callTool('Gmail','send_message',{to:[email],subject:'Tournées infirmières'+(x.dates.length>1?' du '+first+' au '+last:' du '+first),
-      body:'Bonjour,\n\nVoici le relevé des tournées en pièce jointe (un onglet par jour) :\n\n'+lines+'\n\nEnvoyé depuis l\'application Tournée d\'Annabelle la criminelle.',
+      body:'',
       attachments:[{content:XLSX.write(x.wb,{bookType:'xlsx',type:'base64'}),filename:x.fname,mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}]});
     store.set('mail',email); M.msg={ok:true,t:window.__PWA?(((RR||{}).payload||{}).how==='mailto'?'Le mail s\'ouvre : joignez le fichier Excel qui vient d\'être téléchargé.':'Choisissez Outlook (ou votre messagerie) : un fichier par jour est joint, il reste à ajouter le destinataire.'):'Envoyé à '+email+' ('+x.dates.length+' journée'+(x.dates.length>1?'s':'')+').'};
   }catch(e){
@@ -1086,20 +1088,20 @@ function fail(e){
   toast('Enregistrement impossible. Vérifiez la connexion et réessayez.');
 }
 /* ---------- synchro : tout est d'abord enregistré sur le téléphone, puis envoyé dès qu'il y a du réseau ---------- */
-const SV={patients:{},soins:{},bilans:{},taches:{},typesoins:{},config:{},days:{},dayH:{},dayT:{}};
+const SV={patients:{},soins:{},bilans:{},taches:{},typesoins:{},config:{},days:{},dayH:{},dayT:{},dayR:{}};
 let OUT=[];
 try{OUT=JSON.parse(localStorage.getItem('ti.outbox')||'[]')||[]}catch(e){OUT=[]}
 try{const c=JSON.parse(localStorage.getItem('ti.cache')||'null');if(c){Object.assign(SV,c);['patients','soins','bilans','taches'].forEach(k=>S.loaded.add(k));S.fromCache=true}}catch(e){}
 const saveOut=()=>{try{localStorage.setItem('ti.outbox',JSON.stringify(OUT))}catch(e){}};
 let cacheT=null;
 function saveCache(){clearTimeout(cacheT);cacheT=setTimeout(()=>{try{
-  const ds=Object.keys(SV.days).sort();ds.slice(0,Math.max(0,ds.length-40)).forEach(d=>{delete SV.days[d];if(SV.dayH)delete SV.dayH[d];if(SV.dayT)delete SV.dayT[d]});
+  const ds=Object.keys(SV.days).sort();ds.slice(0,Math.max(0,ds.length-40)).forEach(d=>{delete SV.days[d];if(SV.dayH)delete SV.dayH[d];if(SV.dayT)delete SV.dayT[d];if(SV.dayR)delete SV.dayR[d]});
   localStorage.setItem('ti.cache',JSON.stringify(SV))}catch(e){}},400)}
 function applyOp(v,op){
   if(op.t==='vu'){v.days[op.date]=Object.assign({},v.days[op.date]||{},{[op.id]:op.val});return}
-  if(op.t==='day'){if(Object.keys(op.vus||{}).length)v.days[op.date]=Object.assign({},v.days[op.date]||{},op.vus);if(Object.keys(op.heures||{}).length)v.dayH[op.date]=Object.assign({},v.dayH[op.date]||{},op.heures);if(Object.keys(op.tournees||{}).length){v.dayT=v.dayT||{};v.dayT[op.date]=Object.assign({},v.dayT[op.date]||{},op.tournees)}return}
+  if(op.t==='day'){if(Object.keys(op.vus||{}).length)v.days[op.date]=Object.assign({},v.days[op.date]||{},op.vus);if(Object.keys(op.heures||{}).length)v.dayH[op.date]=Object.assign({},v.dayH[op.date]||{},op.heures);if(Object.keys(op.tournees||{}).length){v.dayT=v.dayT||{};v.dayT[op.date]=Object.assign({},v.dayT[op.date]||{},op.tournees)}if(op.rempl){v.dayR=v.dayR||{};v.dayR[op.date]=op.rempl}return}
   if(op.t==='heure'){v.dayH[op.date]=Object.assign({},v.dayH[op.date]||{},{[op.id]:op.val});return}
-  if(op.t==='clearPassages'){v.days={};v.dayH={};v.dayT={};return}
+  if(op.t==='clearPassages'){v.days={};v.dayH={};v.dayT={};v.dayR={};return}
   const [c,id]=op.path.split('/');
   if(c==='config'){if(op.t==='set')v.config=op.data;return}
   const col=v[c]; if(!col) return;
@@ -1108,16 +1110,19 @@ function applyOp(v,op){
   else if(op.t==='del') delete col[id];
 }
 function recompute(){
-  const v={patients:{...SV.patients},soins:{...SV.soins},bilans:{...SV.bilans},taches:{...SV.taches},typesoins:{...(SV.typesoins||{})},config:SV.config||{},days:{...SV.days},dayH:{...(SV.dayH||{})},dayT:{...(SV.dayT||{})}};
+  const v={patients:{...SV.patients},soins:{...SV.soins},bilans:{...SV.bilans},taches:{...SV.taches},typesoins:{...(SV.typesoins||{})},config:SV.config||{},days:{...SV.days},dayH:{...(SV.dayH||{})},dayT:{...(SV.dayT||{})},dayR:{...(SV.dayR||{})}};
   OUT.forEach(op=>applyOp(v,op));
   const bil={};Object.entries(v.bilans).forEach(([k,b])=>{if(b&&v.patients[b.patientId])bil[k]=b});
   S.patients=v.patients;S.soins=v.soins;S.bilans=bil;S.taches=v.taches;S.typesoins=v.typesoins;S.config=v.config||{};
-  S.vus=v.days[S.date]||{};S.dayH=v.dayH;S.dayT=v.dayT||{};
+  S.vus=v.days[S.date]||{};S.dayH=v.dayH;S.dayT=v.dayT||{};S.dayR=v.dayR||{};
 }
 function w(ops){
   if(!S.canWrite) return Promise.resolve(false);
   ops.forEach(o=>{
     /* les coches et l'ordre d'une même journée sont regroupés en un seul envoi */
+    if(o.t==='rempl'){const last=OUT[OUT.length-1];
+      if(last&&last.t==='day'&&last.date===o.date&&last!==EXEC){last.rempl=o.val;return}
+      OUT.push({t:'day',date:o.date,vus:{},heures:{},tournees:{},rempl:o.val});return}
     if(o.t==='vu'||o.t==='heure'||o.t==='tournee'){
       const key=o.t==='vu'?'vus':o.t==='heure'?'heures':'tournees',last=OUT[OUT.length-1];
       if(last&&last.t==='day'&&last.date===o.date&&last!==EXEC){last[key]=Object.assign({},last[key]||{},{[o.id]:o.val});return}
@@ -1128,7 +1133,7 @@ function w(ops){
 const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej({code:'timeout'}),ms))]);
 async function execOp(db,op){
   if(op.t==='day'){const ref=db.doc('passages/'+op.date),data={};
-    if(Object.keys(op.vus||{}).length)data.vus=op.vus;if(Object.keys(op.heures||{}).length)data.heures=op.heures;if(Object.keys(op.tournees||{}).length)data.tournees=op.tournees;
+    if(Object.keys(op.vus||{}).length)data.vus=op.vus;if(Object.keys(op.heures||{}).length)data.heures=op.heures;if(Object.keys(op.tournees||{}).length)data.tournees=op.tournees;if(op.rempl)data.rempl=op.rempl;
     try{await ref.update(data)}catch(e){if(e&&e.code==='invalid_argument'){await ref.set(Object.assign({date:op.date,vus:{},heures:{}},data))}else throw e}
     return}
   if(op.t==='vu'){const ref=db.doc('passages/'+op.date);const g=await ref.get();
@@ -1191,7 +1196,19 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden&&OUT.length
 
 function fail(e){toast('Enregistrement impossible.')}
 function markVu(date,id){w([{t:'vu',date,id,val:true}])}
-function toggleVu(id){setVu(id,S.vus[id]?false:true)}
+function toggleVu(id){
+  if(S.vus[id]&&S.date<today()){askConfirm('Décocher ce passage d\'une journée passée ('+fmtLong(S.date)+') ?',()=>setVu(id,false));return}
+  setVu(id,S.vus[id]?false:true)}
+/* petite fenêtre de confirmation */
+function askConfirm(msg,yes){
+  let c=document.getElementById('cfm');if(!c){c=document.createElement('div');c.id='cfm';document.body.appendChild(c)}
+  c.innerHTML=`<div class="overlay" style="z-index:45;align-items:center"><div class="sheet" style="border-radius:20px;max-width:420px;gap:12px" role="alertdialog" aria-modal="true">
+    <b style="font-size:1.05rem">${esc(msg)}</b><div class="formbtns"><button class="btn ghost" id="cfm_no">Annuler</button><button class="btn danger" id="cfm_yes">Décocher</button></div></div></div>`;
+  const close=()=>{c.innerHTML=''};
+  document.getElementById('cfm_no').onclick=close;
+  document.getElementById('cfm_yes').onclick=()=>{close();yes()};
+  document.getElementById('cfm_no').focus();
+}
 function setVu(id,val){w([{t:'vu',date:S.date,id,val}])}
 function nextPid(){let m=0;Object.keys(S.patients).forEach(k=>{const n=/^P(\d+)$/.exec(k);if(n)m=Math.max(m,+n[1])});return 'P'+pad(m+1)}
 const val=id=>{const el=document.getElementById(id);return el?el.value.trim():''};
@@ -1347,6 +1364,9 @@ document.addEventListener('change',e=>{
     openModal({pid:null,mode:'editp',excDraft:dr});return}
   if(el.dataset.act==='tache'){const id=el.dataset.id;w([{t:'update',path:'taches/'+id,data:{fait:el.checked}}])}
   if(el.classList&&el.classList.contains('bhsel')){const id=el.dataset.bid;w([{t:'update',path:'bilans/'+id,data:{heure:el.value}}]).then(ok=>{if(ok)toast(el.value?'Bilan à '+el.value:'Heure du bilan retirée')});return}
+  if(el.id==='f_remplon'){const r=(S.dayR||{})[S.date]||{};w([{t:'rempl',date:S.date,val:{on:el.checked,prenom:r.prenom||''}}]).then(()=>{if(el.checked)setTimeout(()=>{const t=document.getElementById('f_remplnom');if(t)t.focus()},60)});return}
+  if(el.id==='f_remplnom'){w([{t:'rempl',date:S.date,val:{on:true,prenom:el.value.trim()}}]).then(ok=>{if(ok&&el.value.trim())toast('Remplaçante : '+el.value.trim())});return}
+  if(el.dataset.act==='bilan'&&!el.checked&&S.date<today()){el.checked=true;const id=el.dataset.id;askConfirm('Décocher ce bilan d\'une journée passée ('+fmtLong(S.date)+') ?',()=>w([{t:'update',path:'bilans/'+id,data:{fait:false}}]));return}
   if(el.dataset.act==='bilan'){const id=el.dataset.id;w([{t:'update',path:'bilans/'+id,data:{fait:el.checked}}])}
 });
 document.addEventListener('input',e=>{
@@ -1471,7 +1491,7 @@ document.addEventListener('pointerdown',e=>{
   LP.fired=false; LP.el=el; el.classList.add('pressing');
   const id=el.dataset.id;
   LP.t=setTimeout(()=>{LP.fired=true;lpCancel();try{navigator.vibrate&&navigator.vibrate(40)}catch(_){}
-    if(S.vus[id]==='absent'){setVu(id,false);toast('Absence annulée')}
+    if(S.vus[id]==='absent'){if(S.date<today()){askConfirm('Annuler cette absence d\'une journée passée ('+fmtLong(S.date)+') ?',()=>{setVu(id,false);toast('Absence annulée')});return}setVu(id,false);toast('Absence annulée')}
     else{setVu(id,'absent');toast(fullName((S.patients[(S.soins[id]||{}).patientId]))+' noté absent')}},550);
 });
 ['pointerup','pointercancel'].forEach(t=>document.addEventListener(t,lpCancel,true));
@@ -1484,7 +1504,7 @@ function subDay(){
   recompute();
   if(!S.db) return;
   const d=S.date;
-  unsubDay=S.db.doc('passages/'+d).onSnapshot(snap=>{const dd=snap.exists?(snap.data()||{}):{};SV.days[d]=dd.vus||{};SV.dayH=SV.dayH||{};SV.dayH[d]=dd.heures||{};SV.dayT=SV.dayT||{};SV.dayT[d]=dd.tournees||{};saveCache();if(d!==S.date)return;recompute();render()},()=>{});
+  unsubDay=S.db.doc('passages/'+d).onSnapshot(snap=>{const dd=snap.exists?(snap.data()||{}):{};SV.days[d]=dd.vus||{};SV.dayH=SV.dayH||{};SV.dayH[d]=dd.heures||{};SV.dayT=SV.dayT||{};SV.dayT[d]=dd.tournees||{};SV.dayR=SV.dayR||{};SV.dayR[d]=dd.rempl||null;saveCache();if(d!==S.date)return;recompute();render()},()=>{});
 }
 function setDate(d){if(d===S.date){render();return}S.date=d;subDay();render()}
 function subCol(name){
@@ -1500,7 +1520,7 @@ else{
     S.db=db;S.dbState='ok';
     ['patients','soins','bilans','taches','typesoins'].forEach(subCol);
     /* toutes les journées (coches, ordre, tournée du jour) pour la vue semaine */
-    db.collection('passages').onSnapshot(snap=>{snap.docs.forEach(x=>{const dd=x.data()||{};SV.days[x.id]=dd.vus||{};SV.dayH=SV.dayH||{};SV.dayH[x.id]=dd.heures||{};SV.dayT=SV.dayT||{};SV.dayT[x.id]=dd.tournees||{}});saveCache();recompute();render()},()=>{});
+    db.collection('passages').onSnapshot(snap=>{snap.docs.forEach(x=>{const dd=x.data()||{};SV.days[x.id]=dd.vus||{};SV.dayH=SV.dayH||{};SV.dayH[x.id]=dd.heures||{};SV.dayT=SV.dayT||{};SV.dayT[x.id]=dd.tournees||{};SV.dayR=SV.dayR||{};SV.dayR[x.id]=dd.rempl||null});saveCache();recompute();render()},()=>{});
     db.doc('config/app').onSnapshot(s=>{SV.config=s.exists?s.data():{};saveCache();recompute();render()},()=>{});
     subDay();render();flushSoon(0);
   }).catch(()=>{S.dbState='none';render()});

@@ -723,7 +723,8 @@ function vJour(){
   const al=alertes(), nbBad=al.filter(a=>a.o.k==='bad').length;
   const bil=Object.entries(S.bilans).filter(([,b])=>b.date===S.date).filter(([,b])=>S.tournee==='Toutes'||(S.patients[b.patientId]||{}).tournee===S.tournee);
   let h=exempleBanner();
-  h+=`<div class="summary"><div><div class="count">${nbVu}<span> / ${all.length}</span></div><div class="lbl">passages faits${nbAbs?` · <b style="color:var(--warn)">${nbAbs} absent${nbAbs>1?'s':''}</b>`:''}${S.tournee!=='Toutes'?' · '+esc(S.tournee):''}</div></div>
+  h+=vTaches();
+  const sum=`<div class="summary"><div><div class="count">${nbVu}<span> / ${all.length}</span></div><div class="lbl">passages faits${nbAbs?` · <b style="color:var(--warn)">${nbAbs} absent${nbAbs>1?'s':''}</b>`:''}${S.tournee!=='Toutes'?' · '+esc(S.tournee):''}</div></div>
     ${al.length?`<button class="alertchip ${nbBad?'bad':''}" data-act="goalerts">⚠ ${al.length} ordonnance${al.length>1?'s':''}</button>`:'<span class="status ok">Ordonnances à jour</span>'}
     <div class="bar"><i style="width:${all.length?Math.round((nbVu+nbAbs)/all.length*100):0}%"></i></div></div>`;
   h+=`<div style="display:flex;flex-direction:column;gap:8px">${tourneeSeg('tournee',S.tournee)}${seg('vuFilter',[['tous','Tous'],['avoir','À voir'],['vus','Vus']],S.vuFilter)}</div>`;
@@ -737,7 +738,7 @@ function vJour(){
   });
   if(S.canWrite) h+='<div class="exportcta"><button class="btn ghost addimp" data-act="addimprevu">＋ Ajouter un passage imprévu</button></div>';
   if(all.length&&S.canWrite) h+='<div class="hint">Touchez la case pour « vu », restez appuyé pour « absent ».</div>';
-  h+=vTaches();
+  h+=sum;
   h+=exportCta();
   return h;
 }

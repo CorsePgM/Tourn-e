@@ -421,7 +421,7 @@ const monday=s=>addDays(s,-wdIdx(s));
 
 /* ---------- état ---------- */
 const S={tab:'jour',date:today(),week:monday(today()),tournee:'Toutes',vuFilter:'tous',search:'',pfilter:'Toutes',
-  patients:{},soins:{},bilans:{},taches:{},config:{},vus:{},dayExists:false,dayH:{},rs:null,rn:0,rollTo:null,_rrs:null,
+  patients:{},soins:{},bilans:{},taches:{},config:{},vus:{},dayExists:false,dayH:{},dayT:{},rs:null,rn:0,rollTo:null,_rrs:null,
   loaded:new Set(),db:null,dbState:'loading',canWrite:true};
 const store={get(k){try{return localStorage.getItem('ti.'+k)}catch(e){return null}},set(k,v){try{localStorage.setItem('ti.'+k,v)}catch(e){}}};
 ['tournee','vuFilter'].forEach(k=>{const v=store.get(k);if(v)S[k]=v});
@@ -484,6 +484,8 @@ function cadenceLabel(s){
   if(c==='mois2'||c==='mois3') return 'Une fois tous les '+c.slice(4)+' mois'+(dep?' dès le '+fmtShort(dep):'');
   return 'Tous les '+c+' jours'+(dep?' dès le '+fmtShort(dep):'');
 }
+/* tournée d'un patient pour un jour donné : celle de sa fiche, sauf changement ponctuel ce jour-là */
+function tourOf(pid,d){const o=((S.dayT||{})[d]||{})[pid];return o||(S.patients[pid]||{}).tournee}
 function visitesDu(d,tournee){
   const wd=wdIdx(d);
   const list=Object.entries(S.soins).filter(([id,s])=>{
@@ -493,9 +495,9 @@ function visitesDu(d,tournee){
     else if(!cadenceOk(s,d,wd)) return false;
     if(s.debut&&s.debut>d) return false;
     if(s.fin&&s.fin<d) return false;
-    if(tournee&&tournee!=='Toutes'&&p.tournee!==tournee) return false;
+    if(tournee&&tournee!=='Toutes'&&tourOf(s.patientId,d)!==tournee) return false;
     return true;
-  }).flatMap(([id,s])=>{const p=S.patients[s.patientId];
+  }).flatMap(([id,s])=>{const p0=S.patients[s.patientId],t=tourOf(s.patientId,d),p=t===p0.tournee?p0:Object.assign({},p0,{tournee:t,_defT:p0.tournee});
     return creneauxOf(s).map(c=>({sid:id,s:Object.assign({},s,{creneau:c,heure:heureOf(s,c)}),p}));})
    .reduce((acc,x)=>{ /* un seul passage par patient et par créneau : les soins s'ajoutent au même passage */
      const key=x.s.patientId+'@'+(x.s.creneau||'Matin'),m=acc.map[key];
@@ -721,14 +723,14 @@ function vJour(){
   const nbVu=all.filter(v=>S.vus[v.id]===true).length, nbAbs=all.filter(v=>S.vus[v.id]==='absent').length;
   const list=all.filter(v=>S.vuFilter==='tous'||(S.vuFilter==='vus'?S.vus[v.id]===true:!S.vus[v.id]));
   const al=alertes(), nbBad=al.filter(a=>a.o.k==='bad').length;
-  const bil=Object.entries(S.bilans).filter(([,b])=>b.date===S.date).filter(([,b])=>S.tournee==='Toutes'||(S.patients[b.patientId]||{}).tournee===S.tournee);
+  const bil=Object.entries(S.bilans).filter(([,b])=>b.date===S.date).filter(([,b])=>S.tournee==='Toutes'||tourOf(b.patientId,S.date)===S.tournee).sort((a,b)=>String(a[1].heure||'99').localeCompare(String(b[1].heure||'99')));
   let h=exempleBanner();
   h+=vTaches();
   const sum=`<div class="summary"><div><div class="count">${nbVu}<span> / ${all.length}</span></div><div class="lbl">passages faits${nbAbs?` · <b style="color:var(--warn)">${nbAbs} absent${nbAbs>1?'s':''}</b>`:''}${S.tournee!=='Toutes'?' · '+esc(S.tournee):''}</div></div>
     ${al.length?`<button class="alertchip ${nbBad?'bad':''}" data-act="goalerts">⚠ ${al.length} ordonnance${al.length>1?'s':''}</button>`:'<span class="status ok">Ordonnances à jour</span>'}
     <div class="bar"><i style="width:${all.length?Math.round((nbVu+nbAbs)/all.length*100):0}%"></i></div></div>`;
   h+=`<div style="display:flex;flex-direction:column;gap:8px">${tourneeSeg('tournee',S.tournee)}${seg('vuFilter',[['tous','Tous'],['avoir','À voir'],['vus','Vus']],S.vuFilter)}</div>`;
-  if(bil.length) h+=`<div class="banner"><h3>Bilans du jour</h3>${bil.map(([id,b])=>`<label class="checkrow bilrow ${b.fait?'done':''}"><input type="checkbox" data-act="bilan" data-id="${id}" ${b.fait?'checked':''} ${S.canWrite?'':'disabled'}><span class="t"><b>${esc(fullName(S.patients[b.patientId]))}</b>${b.detail?' · '+esc(b.detail):''}</span></label>`).join('')}</div>`;
+  if(bil.length) h+=`<div class="banner"><h3>Bilans du jour</h3>${bil.map(([id,b])=>`<label class="checkrow bilrow ${b.fait?'done':''}"><input type="checkbox" data-act="bilan" data-id="${id}" ${b.fait?'checked':''} ${S.canWrite?'':'disabled'}><span class="t">${b.heure?'<b>'+esc(b.heure)+'</b> · ':''}<b>${esc(fullName(S.patients[b.patientId]))}</b>${b.detail?' · '+esc(b.detail):''}</span></label>`).join('')}</div>`;
   if(!all.length) h+=`<div class="empty"><b>Aucun passage prévu</b><span>Rien n'est programmé ce ${esc(fmtLong(S.date))}${S.tournee!=='Toutes'?' sur la tournée '+esc(S.tournee):''}.</span></div>`;
   else if(!list.length) h+=`<div class="empty"><b>${S.vuFilter==='vus'?'Aucun patient vu pour l\'instant':'Tous les patients ont été vus'}</b></div>`;
   CRENEAUX.forEach(c=>{
@@ -756,8 +758,8 @@ function visitCard({id,sid,excSids,s,p}){
       <button class="vcheck ${vu?'is':''} ${abs?'absent':''}" data-act="vu" data-id="${id}" ${S.canWrite?'':'disabled'} aria-pressed="${vu||abs}" aria-label="${vu?'Vu, appuyer pour annuler':abs?'Absent, appuyer pour annuler':'Marquer comme vu (appui long : absent)'}">${vu?ICON.check:abs?ICON.close:''}</button>
     </div>
     ${open?`<div class="detail">
-      <div class="who">${S.canWrite?`<button class="tag tagbtn ${tclass(p.tournee)}" data-act="asktournee" data-id="${id}" aria-label="Changer de tournée">${esc(p.tournee||'Sans tournée')} ⇄</button>`:(p.tournee?`<span class="tag ${tclass(p.tournee)}">${esc(p.tournee)}</span>`:'')}<span class="commune">${esc(p.adresse||'')}${p.commune?', '+esc(p.commune):''}</span></div>
-      ${S.switchT===id?(()=>{const to=p.tournee==='Montagne'?'Plaine':'Montagne';return `<div class="confirm"><b>Voulez-vous vraiment passer ${esc(fullName(p))} ${p.tournee?'de '+esc(p.tournee)+' à ':'en '}${to} ?</b><div class="formbtns"><button class="btn ghost" data-act="tourneeno">Annuler</button><button class="btn" data-act="tourneeyes" data-pid="${esc(s.patientId)}" data-to="${to}">Passer en ${to}</button></div></div>`})():''}
+      <div class="who">${S.canWrite?`<button class="tag tagbtn ${tclass(p.tournee)}" data-act="asktournee" data-id="${id}" aria-label="Changer de tournée">${esc(p.tournee||'Sans tournée')}${p._defT?' (ce jour)':''} ⇄</button>`:(p.tournee?`<span class="tag ${tclass(p.tournee)}">${esc(p.tournee)}</span>`:'')}<span class="commune">${esc(p.adresse||'')}${p.commune?', '+esc(p.commune):''}</span></div>
+      ${S.switchT===id?(()=>{const to=p.tournee==='Montagne'?'Plaine':'Montagne';return `<div class="confirm"><b>Voulez-vous vraiment passer ${esc(fullName(p))} ${p.tournee?'de '+esc(p.tournee)+' à ':'en '}${to} ${S.date===today()?'aujourd\'hui':'le '+esc(fmtLong(S.date))} seulement ?</b><span style="font-size:.85rem">${to===(p._defT||p.tournee)?'Il revient dans sa tournée habituelle.':'Les autres jours, il reste en '+esc(p._defT||p.tournee)+'.'}</span><div class="formbtns"><button class="btn ghost" data-act="tourneeno">Annuler</button><button class="btn" data-act="tourneeyes" data-pid="${esc(s.patientId)}" data-to="${to}">Passer en ${to} ce jour-là</button></div></div>`})():''}
       <div class="soins">${soins.map(x=>`<span>${esc(x)}</span>`).join('')}</div>
       ${notes.length?`<div class="note"><small>Accès / remarques</small>${notes.map(esc).join(' · ')}</div>`:''}
       <div class="actions">
@@ -793,12 +795,12 @@ function rotInfo(d){
 }
 function dayCol(d){
   let h='';const v=visitesDu(d,S.tournee);
-    const bil=Object.values(S.bilans).filter(b=>b.date===d&&(S.tournee==='Toutes'||(S.patients[b.patientId]||{}).tournee===S.tournee));
+    const bil=Object.values(S.bilans).filter(b=>b.date===d&&(S.tournee==='Toutes'||tourOf(b.patientId,d)===S.tournee)).sort((a,b)=>String(a.heure||'99').localeCompare(String(b.heure||'99')));
     const short=p=>p?esc((p.nom||'').toUpperCase())+(p.prenom?' '+esc(p.prenom[0])+'.':''):'?';
     const dl=parse(d);
     const rt=S.rot?rotInfo(d):null;
     h+=`<div class="day ${d===today()?'today':''} ${S.flash===d?'flash':''} ${rt?'rot':''}" ${S.canWrite?`data-act="addexc" data-d="${d}" role="button" tabindex="0" aria-label="Ajouter un passage exceptionnel le ${esc(fmtLong(d))}"`:''}><header><button data-act="openday" data-d="${d}"><span class="lfull">${esc(fmtLong(d))}</span><span class="lshort">${esc(dl.toLocaleDateString('fr-FR',{weekday:'short'}))} ${dl.getDate()} ${MOIS3[dl.getMonth()]}</span></button><span class="n"><span class="lfull">${v.length} passage${v.length>1?'s':''}</span><span class="lshort">${v.length} pass.</span>${S.canWrite?' <b class="addx" aria-hidden="true">+</b>':''}</span>${rt?`<span class="rottag ${tclass(rt)}">${rt}</span>`:''}</header>`;
-    if(bil.length) h+=`<div class="bil">⚠ Bilan : <span class="lfull">${bil.map(b=>esc(fullName(S.patients[b.patientId]))).join(', ')}</span><span class="lshort">${bil.map(b=>short(S.patients[b.patientId])).join(', ')}</span></div>`;
+    if(bil.length) h+=`<div class="bil">⚠ Bilan : <span class="lfull">${bil.map(b=>(b.heure?esc(b.heure)+' ':'')+esc(fullName(S.patients[b.patientId]))).join(', ')}</span><span class="lshort">${bil.map(b=>(b.heure?esc(b.heure)+' ':'')+short(S.patients[b.patientId])).join(', ')}</span></div>`;
     if(v.length){h+='<dl class="daylist">';CRENEAUX.forEach(c=>{const it=v.filter(x=>(x.s.creneau||'Matin')===c);if(!it.length)return;
       h+=`<dt>${c}</dt><dd>${it.map(x=>`<span class="mini" title="${esc(fullName(x.p))}"><i class="dot ${tclass(x.p.tournee)}"></i><span class="full">${esc(fullName(x.p))}</span><span class="short">${esc((x.p.nom||'').toUpperCase())}${x.p.prenom?' '+esc(x.p.prenom[0])+'.':''}</span>${x.s.exceptionnel?'<em class="exc">exc.</em>':''}${estAnniv(x.p,d)?'<span class="cake" title="Anniversaire">🎂</span>':''}</span>`).join('')}</dd>`;});h+='</dl>';}
     else h+='<span class="none" style="color:var(--muted);font-size:.9rem">Aucun passage</span>';
@@ -890,7 +892,7 @@ function viewPatient(id,p){
   h+='</div>';
   if(ex.length){h+=`<div class="card"><h2>Passages exceptionnels</h2>${ex.map(([sid,s])=>`<div class="row" style="display:flex;justify-content:space-between;gap:8px;align-items:center"><span style="min-width:0"><b>${esc(fmtShort(s.date))}</b> · ${esc(creneauxOf(s).map(c=>c+(heureOf(s,c)?' '+heureOf(s,c):'')).join(' + '))} · ${esc((s.soins||[]).filter(Boolean).join(' + '))}</span>${S.canWrite?`<button class="linkbtn" style="color:var(--bad)" data-act="delexc" data-id="${sid}">Retirer</button>`:''}</div>`).join('')}</div>`;}
   h+=`<div class="card"><h2>Bilans ${S.canWrite?'<button class="linkbtn" data-act="newbilan">+ Programmer</button>':''}</h2>`;
-  h+=bl.length?bl.map(([bid,b])=>`<div class="row" style="display:flex;justify-content:space-between;gap:8px;align-items:center"><label class="checkrow bilrow ${b.fait?'done':''}"><input type="checkbox" data-act="bilan" data-id="${bid}" ${b.fait?'checked':''} ${S.canWrite?'':'disabled'}><span class="t">${esc(fmtShort(b.date))}${b.detail?' · '+esc(b.detail):''}</span></label>${S.canWrite?`<button class="linkbtn" style="color:var(--bad)" data-act="delbilan" data-id="${bid}">Retirer</button>`:''}</div>`).join(''):'<span style="color:var(--muted)">Aucun bilan programmé.</span>';
+  h+=bl.length?bl.map(([bid,b])=>`<div class="row" style="display:flex;justify-content:space-between;gap:8px;align-items:center"><label class="checkrow bilrow ${b.fait?'done':''}"><input type="checkbox" data-act="bilan" data-id="${bid}" ${b.fait?'checked':''} ${S.canWrite?'':'disabled'}><span class="t">${esc(fmtShort(b.date))}${b.heure?' à '+esc(b.heure):''}${b.detail?' · '+esc(b.detail):''}</span></label>${S.canWrite?`<button class="linkbtn" style="color:var(--bad)" data-act="delbilan" data-id="${bid}">Retirer</button>`:''}</div>`).join(''):'<span style="color:var(--muted)">Aucun bilan programmé.</span>';
   h+='</div>';
   if(S.canWrite) h+= M.confirm?`<div class="confirm"><b>Supprimer ${esc(fullName(p))} ?</b><span>La fiche, tous ses soins et ses bilans seront supprimés.</span><div class="formbtns"><button class="btn ghost" data-act="delno">Annuler</button><button class="btn danger" data-act="delyes">Supprimer</button></div></div>`
     :`<div><button class="linkbtn" style="color:var(--bad)" data-act="delp">Supprimer ce patient</button></div>`;
@@ -1064,7 +1066,8 @@ async function sendExport(){
 function formBilan(){
   const d0=M.date||S.date;
   const ps=Object.entries(S.patients).sort((a,b)=>fullName(a[1]).localeCompare(fullName(b[1])));
-  return `<form class="f" data-form="bilan">${fld('f_bdate','Date du bilan',d0,'date','required')}
+  const bh=(M.bdraft||{}).heure||'';let hopts='<option value="">— Sans heure —</option>';for(let m=6*60;m<=20*60;m+=15){const h=fromMin(m);hopts+=`<option ${h===bh?'selected':''}>${h}</option>`}
+  return `<form class="f" data-form="bilan"><div class="grid2">${fld('f_bdate','Date du bilan',d0,'date','required')}<label class="field"><span>Heure</span><select id="f_bheure">${hopts}</select></label></div>
     ${M.pid?'':`<label class="field"><span>Patient</span><select id="f_bpat" required><option value="">Choisir un patient…</option><option value="__new">＋ Nouveau patient…</option>${ps.map(([id,p])=>`<option value="${esc(id)}" ${(M.bdraft||{}).pid===id?'selected':''}>${esc(fullName(p))}${p.tournee?' · '+esc(p.tournee):''}</option>`).join('')}</select></label>`}
     <div class="err" id="ferr" hidden></div>
     <label class="field"><span>Détail (facultatif)</span><input type="text" id="f_bdetail" value="${esc((M.bdraft||{}).detail||'')}" placeholder="Ex. NFS, glycémie à jeun" autocomplete="off"></label>
@@ -1081,20 +1084,20 @@ function fail(e){
   toast('Enregistrement impossible. Vérifiez la connexion et réessayez.');
 }
 /* ---------- synchro : tout est d'abord enregistré sur le téléphone, puis envoyé dès qu'il y a du réseau ---------- */
-const SV={patients:{},soins:{},bilans:{},taches:{},typesoins:{},config:{},days:{},dayH:{}};
+const SV={patients:{},soins:{},bilans:{},taches:{},typesoins:{},config:{},days:{},dayH:{},dayT:{}};
 let OUT=[];
 try{OUT=JSON.parse(localStorage.getItem('ti.outbox')||'[]')||[]}catch(e){OUT=[]}
 try{const c=JSON.parse(localStorage.getItem('ti.cache')||'null');if(c){Object.assign(SV,c);['patients','soins','bilans','taches'].forEach(k=>S.loaded.add(k));S.fromCache=true}}catch(e){}
 const saveOut=()=>{try{localStorage.setItem('ti.outbox',JSON.stringify(OUT))}catch(e){}};
 let cacheT=null;
 function saveCache(){clearTimeout(cacheT);cacheT=setTimeout(()=>{try{
-  const ds=Object.keys(SV.days).sort();ds.slice(0,Math.max(0,ds.length-40)).forEach(d=>{delete SV.days[d];if(SV.dayH)delete SV.dayH[d]});
+  const ds=Object.keys(SV.days).sort();ds.slice(0,Math.max(0,ds.length-40)).forEach(d=>{delete SV.days[d];if(SV.dayH)delete SV.dayH[d];if(SV.dayT)delete SV.dayT[d]});
   localStorage.setItem('ti.cache',JSON.stringify(SV))}catch(e){}},400)}
 function applyOp(v,op){
   if(op.t==='vu'){v.days[op.date]=Object.assign({},v.days[op.date]||{},{[op.id]:op.val});return}
-  if(op.t==='day'){if(Object.keys(op.vus||{}).length)v.days[op.date]=Object.assign({},v.days[op.date]||{},op.vus);if(Object.keys(op.heures||{}).length)v.dayH[op.date]=Object.assign({},v.dayH[op.date]||{},op.heures);return}
+  if(op.t==='day'){if(Object.keys(op.vus||{}).length)v.days[op.date]=Object.assign({},v.days[op.date]||{},op.vus);if(Object.keys(op.heures||{}).length)v.dayH[op.date]=Object.assign({},v.dayH[op.date]||{},op.heures);if(Object.keys(op.tournees||{}).length){v.dayT=v.dayT||{};v.dayT[op.date]=Object.assign({},v.dayT[op.date]||{},op.tournees)}return}
   if(op.t==='heure'){v.dayH[op.date]=Object.assign({},v.dayH[op.date]||{},{[op.id]:op.val});return}
-  if(op.t==='clearPassages'){v.days={};v.dayH={};return}
+  if(op.t==='clearPassages'){v.days={};v.dayH={};v.dayT={};return}
   const [c,id]=op.path.split('/');
   if(c==='config'){if(op.t==='set')v.config=op.data;return}
   const col=v[c]; if(!col) return;
@@ -1103,27 +1106,27 @@ function applyOp(v,op){
   else if(op.t==='del') delete col[id];
 }
 function recompute(){
-  const v={patients:{...SV.patients},soins:{...SV.soins},bilans:{...SV.bilans},taches:{...SV.taches},typesoins:{...(SV.typesoins||{})},config:SV.config||{},days:{...SV.days},dayH:{...(SV.dayH||{})}};
+  const v={patients:{...SV.patients},soins:{...SV.soins},bilans:{...SV.bilans},taches:{...SV.taches},typesoins:{...(SV.typesoins||{})},config:SV.config||{},days:{...SV.days},dayH:{...(SV.dayH||{})},dayT:{...(SV.dayT||{})}};
   OUT.forEach(op=>applyOp(v,op));
   const bil={};Object.entries(v.bilans).forEach(([k,b])=>{if(b&&v.patients[b.patientId])bil[k]=b});
   S.patients=v.patients;S.soins=v.soins;S.bilans=bil;S.taches=v.taches;S.typesoins=v.typesoins;S.config=v.config||{};
-  S.vus=v.days[S.date]||{};S.dayH=v.dayH;
+  S.vus=v.days[S.date]||{};S.dayH=v.dayH;S.dayT=v.dayT||{};
 }
 function w(ops){
   if(!S.canWrite) return Promise.resolve(false);
   ops.forEach(o=>{
     /* les coches et l'ordre d'une même journée sont regroupés en un seul envoi */
-    if(o.t==='vu'||o.t==='heure'){
-      const key=o.t==='vu'?'vus':'heures',last=OUT[OUT.length-1];
+    if(o.t==='vu'||o.t==='heure'||o.t==='tournee'){
+      const key=o.t==='vu'?'vus':o.t==='heure'?'heures':'tournees',last=OUT[OUT.length-1];
       if(last&&last.t==='day'&&last.date===o.date&&last!==EXEC){last[key]=Object.assign({},last[key]||{},{[o.id]:o.val});return}
-      OUT.push({t:'day',date:o.date,vus:o.t==='vu'?{[o.id]:o.val}:{},heures:o.t==='heure'?{[o.id]:o.val}:{}});return}
+      OUT.push({t:'day',date:o.date,vus:{},heures:{},tournees:{},[key]:{[o.id]:o.val}});return}
     OUT.push(o)}); saveOut(); recompute(); render(); updatePending(); flushSoon(200);
   return Promise.resolve(true);
 }
 const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej({code:'timeout'}),ms))]);
 async function execOp(db,op){
   if(op.t==='day'){const ref=db.doc('passages/'+op.date),data={};
-    if(Object.keys(op.vus||{}).length)data.vus=op.vus;if(Object.keys(op.heures||{}).length)data.heures=op.heures;
+    if(Object.keys(op.vus||{}).length)data.vus=op.vus;if(Object.keys(op.heures||{}).length)data.heures=op.heures;if(Object.keys(op.tournees||{}).length)data.tournees=op.tournees;
     try{await ref.update(data)}catch(e){if(e&&e.code==='invalid_argument'){await ref.set(Object.assign({date:op.date,vus:{},heures:{}},data))}else throw e}
     return}
   if(op.t==='vu'){const ref=db.doc('passages/'+op.date);const g=await ref.get();
@@ -1199,7 +1202,7 @@ async function savePatient(){
   const obj={nom:nom.toUpperCase(),prenom:val('f_prenom'),naissance:val('f_naiss')||'',gps:gps||'',adresse:val('f_adresse'),commune:val('f_commune'),tel:val('f_tel'),fixe:val('f_fixe'),acces:val('f_acces'),medecin:val('f_medecin'),remarques:val('f_remarques'),tournee:val('f_tournee')};
   const dr=M.excDraft,bd=M.bilDraft;
   if(await w([{t:'set',path:'patients/'+id,data:obj}])){S.patients[id]=obj;
-    if(bd){const b={date:bd.date,patientId:id,detail:bd.detail||'',fait:false};
+    if(bd){const b={date:bd.date,patientId:id,detail:bd.detail||'',heure:bd.heure||'',fait:false};
       if(await w([{t:'set',path:'bilans/'+uid(),data:b}])){closeModal();afterExc(bd.date,id,fullName(obj)+' créé, bilan programmé le '+fmtShort(bd.date))}
       return}
     if(dr){
@@ -1234,7 +1237,7 @@ async function saveBilan(){
   const date=val('f_bdate'); if(!date){showErr('Choisissez une date.');return}
   const pid=M.pid||val('f_bpat'); if(!pid){showErr('Choisissez un patient.');return}
   const fromWeek=!M.pid;
-  const obj={date,patientId:pid,detail:val('f_bdetail'),fait:false};
+  const obj={date,patientId:pid,detail:val('f_bdetail'),heure:val('f_bheure')||'',fait:false};
   if(await w([{t:'set',path:'bilans/'+uid(),data:obj}])){
     if(fromWeek){closeModal();afterExc(date,pid,'Bilan programmé : '+fullName(S.patients[pid])+' le '+fmtShort(date))}
     else{toast('Bilan programmé');openModal({pid,mode:'view'})}}
@@ -1276,7 +1279,7 @@ document.addEventListener('click',e=>{
     case 'tourneeno': S.switchT=null;render();break;
     case 'tourneeyes': {const pid=el.dataset.pid,to=el.dataset.to;S.switchT=null;
       if(S.tournee!=='Toutes'&&S.tournee!==to){S.open=null}
-      w([{t:'update',path:'patients/'+pid,data:{tournee:to}}]).then(ok=>{if(ok)toast(fullName(S.patients[pid])+' passe en '+to)});render();break;}
+      const def=(S.patients[pid]||{}).tournee;w([{t:'tournee',date:S.date,id:pid,val:to===def?null:to}]).then(ok=>{if(ok)toast(fullName(S.patients[pid])+' : '+to+' le '+fmtShort(S.date)+(to===def?' (tournée habituelle)':' seulement'))});render();break;}
     case 'goalerts': S.tab='patients';store.set('tab','patients');render();window.scrollTo(0,0);break;
     case 'cleartaches': w(Object.entries(S.taches).filter(([,t])=>t.fait).map(([k])=>({t:'del',path:'taches/'+k})));break;
     case 'reset': S.confirmReset=true;render();break;
@@ -1336,7 +1339,7 @@ document.addEventListener('change',e=>{
     if(diffDays(M.from,M.to)>61) M.from=addDays(M.to,-61);
     loadExportDays();return}
   if(el.dataset.act==='expday'&&M){M.checked[el.dataset.d]=el.checked;return}
-  if(el.id==='f_bpat'&&el.value==='__new'&&M){openModal({pid:null,mode:'editp',bilDraft:{date:val('f_bdate')||M.date||S.date,detail:val('f_bdetail')}});return}
+  if(el.id==='f_bpat'&&el.value==='__new'&&M){openModal({pid:null,mode:'editp',bilDraft:{date:val('f_bdate')||M.date||S.date,detail:val('f_bdetail'),heure:val('f_bheure')}});return}
   if(el.id==='f_xpat'&&el.value==='__new'&&M){
     const dr={date:val('f_xdate')||M.date,soins:[0,1,2].map(i=>val('f_xs'+i)).filter(Boolean),...readX(),vu:!!(document.getElementById('f_xvu')||{}).checked};
     openModal({pid:null,mode:'editp',excDraft:dr});return}
@@ -1478,7 +1481,7 @@ function subDay(){
   recompute();
   if(!S.db) return;
   const d=S.date;
-  unsubDay=S.db.doc('passages/'+d).onSnapshot(snap=>{const dd=snap.exists?(snap.data()||{}):{};SV.days[d]=dd.vus||{};SV.dayH=SV.dayH||{};SV.dayH[d]=dd.heures||{};saveCache();if(d!==S.date)return;recompute();render()},()=>{});
+  unsubDay=S.db.doc('passages/'+d).onSnapshot(snap=>{const dd=snap.exists?(snap.data()||{}):{};SV.days[d]=dd.vus||{};SV.dayH=SV.dayH||{};SV.dayH[d]=dd.heures||{};SV.dayT=SV.dayT||{};SV.dayT[d]=dd.tournees||{};saveCache();if(d!==S.date)return;recompute();render()},()=>{});
 }
 function setDate(d){if(d===S.date){render();return}S.date=d;subDay();render()}
 function subCol(name){
@@ -1493,6 +1496,8 @@ else{
     if(!db){S.dbState='none';render();return}
     S.db=db;S.dbState='ok';
     ['patients','soins','bilans','taches','typesoins'].forEach(subCol);
+    /* toutes les journées (coches, ordre, tournée du jour) pour la vue semaine */
+    db.collection('passages').onSnapshot(snap=>{snap.docs.forEach(x=>{const dd=x.data()||{};SV.days[x.id]=dd.vus||{};SV.dayH=SV.dayH||{};SV.dayH[x.id]=dd.heures||{};SV.dayT=SV.dayT||{};SV.dayT[x.id]=dd.tournees||{}});saveCache();recompute();render()},()=>{});
     db.doc('config/app').onSnapshot(s=>{SV.config=s.exists?s.data():{};saveCache();recompute();render()},()=>{});
     subDay();render();flushSoon(0);
   }).catch(()=>{S.dbState='none';render()});

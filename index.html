@@ -988,7 +988,7 @@ async function loadExportDays(){
   for(let d=m.from;d<=m.to;d=addDays(d,1)){
     const v=visitesDu(d,'Toutes'),vu=map[d]||{};
     const nVu=v.filter(x=>vu[x.id]===true).length,nAbs=v.filter(x=>vu[x.id]==='absent').length;
-    m.days.push({d,tot:v.length,nVu,nAbs}); m.checked[d]=nVu+nAbs>0;
+    m.days.push({d,tot:v.length,nVu,nAbs}); m.checked[d]=nVu>0;
   }
   drawModal();
 }
@@ -1000,27 +1000,26 @@ function formExport(){
     <div class="grid2">${fld('f_efrom','Du',m.from,'date')}${fld('f_eto','Au',m.to,'date')}</div>
     <div class="card" style="gap:6px"><h2>Journées à envoyer <span><button class="linkbtn" data-act="expall">Tout</button> · <button class="linkbtn" data-act="expnone">Aucun</button></span></h2>${list}</div>
     <label class="field"><span>Adresse mail du destinataire</span><input type="email" id="f_email" value="${esc(m.email||'')}" placeholder="exemple@gmail.com" autocomplete="email" inputmode="email"></label>
-    <small style="color:var(--muted)">Le fichier Excel contient un onglet Résumé puis un onglet par jour : créneau, patient, tournée, soins, vu / absent / non fait, bilans.</small>
+    <small style="color:var(--muted)">Le fichier contient un résumé puis un onglet par jour, avec uniquement les passages cochés « vu » et les bilans faits.</small>
     ${m.msg?`<div class="${m.msg.ok?'okmsg':'err'}">${esc(m.msg.t)}</div>`:''}
     <div class="formbtns"><button class="btn ghost" data-act="expdl" ${m.busy?'disabled':''}>Télécharger le fichier</button><button class="btn" data-act="expsend" ${m.busy?'disabled':''}>${m.busy?'Envoi en cours…':'Envoyer par mail'}</button></div></div>`;
 }
 function selectedDays(){return (M.days||[]).filter(x=>M.checked[x.d]).map(x=>x.d)}
 function buildWorkbook(dates){
+  /* seuls les passages cochés « vu » et les bilans faits sont exportés */
   const X=window.XLSX, wb=X.utils.book_new(), sheets=[];
-  const sum=[['Date','Jour','Prévus','Vus','Absents','Non faits','Bilans prévus','Bilans faits']];
+  const sum=[['Date','Jour','Passages faits','Bilans faits']];
   dates.forEach(d=>{
-    const v=visitesDu(d,'Toutes'),vu=M.vus[d]||{};
-    const rows=v.map(x=>{const st=vu[x.id]===true?'Vu':vu[x.id]==='absent'?'Absent':'Non fait';
-      return [x.s.creneau||'',fullName(x.p),x.p.tournee||'',(x.s.soins||[]).filter(Boolean).join(' + '),st,x.s.exceptionnel?'Exceptionnel':'Habituel']});
-    const bl=Object.values(S.bilans).filter(b=>b.date===d);
-    bl.forEach(b=>{const p=S.patients[b.patientId]||{};rows.push(['',fullName(p),p.tournee||'','Bilan'+(b.detail?' : '+b.detail:''),b.fait?'Fait':'Non fait','Bilan'])});
-    const nVu=v.filter(x=>vu[x.id]===true).length,nAbs=v.filter(x=>vu[x.id]==='absent').length;
-    sum.push([fmtShort(d),parse(d).toLocaleDateString('fr-FR',{weekday:'long'}),v.length,nVu,nAbs,v.length-nVu-nAbs,bl.length,bl.filter(b=>b.fait).length]);
-    const ws=X.utils.aoa_to_sheet([['Tournée du '+fmtLong(d)+' '+parse(d).getFullYear()],[],['Créneau','Patient','Tournée','Soins','Statut','Type'],...rows]);
-    ws['!cols']=[8,24,10,40,10,12].map(w=>({wch:w}));
+    const vu=M.vus[d]||{},v=visitesDu(d,'Toutes').filter(x=>vu[x.id]===true);
+    const rows=v.map(x=>[x.s.creneau||'',fullName(x.p),x.p.tournee||'',(x.s.soins||[]).filter(Boolean).join(' + '),x.s.exceptionnel?'Exceptionnel':'Habituel']);
+    const bl=Object.values(S.bilans).filter(b=>b.date===d&&b.fait);
+    bl.forEach(b=>{const p=S.patients[b.patientId]||{};rows.push([b.heure||'',fullName(p),tourOf(b.patientId,d)||'','Bilan'+(b.detail?' : '+b.detail:''),'Bilan'])});
+    sum.push([fmtShort(d),parse(d).toLocaleDateString('fr-FR',{weekday:'long'}),v.length,bl.length]);
+    const ws=X.utils.aoa_to_sheet([['Tournée du '+fmtLong(d)+' '+parse(d).getFullYear()],[],['Créneau','Patient','Tournée','Soins','Type'],...rows]);
+    ws['!cols']=[8,24,10,40,12].map(w=>({wch:w}));
     sheets.push([ws,d+' '+parse(d).toLocaleDateString('fr-FR',{weekday:'short'}).replace('.','')]);
   });
-  const s0=X.utils.aoa_to_sheet(sum); s0['!cols']=[10,10,8,6,8,9,13,12].map(w=>({wch:w}));
+  const s0=X.utils.aoa_to_sheet(sum); s0['!cols']=[10,10,15,13].map(w=>({wch:w}));
   X.utils.book_append_sheet(wb,s0,'Résumé');
   sheets.forEach(([ws,n])=>X.utils.book_append_sheet(wb,ws,n.slice(0,31)));
   return wb;
@@ -1048,7 +1047,7 @@ async function sendExport(){
   const x=exportPrep(); if(!x) return;
   const mcp=window.claude&&await window.claude.use('mcp');
   if(!mcp){M.msg={t:'L\'envoi par mail n\'est pas disponible ici. Utilisez « Télécharger le fichier » puis envoyez-le vous-même.'};drawModal();return}
-  const lines=x.dates.map(d=>{const k=M.days.find(y=>y.d===d);return '- '+fmtLong(d)+' : '+k.nVu+' vu(s), '+k.nAbs+' absent(s) sur '+k.tot+' passage(s)'}).join('\n');
+  const lines=x.dates.map(d=>{const k=M.days.find(y=>y.d===d);return '- '+fmtLong(d)+' : '+k.nVu+' passage'+(k.nVu>1?'s':'')+' fait'+(k.nVu>1?'s':'')}).join('\n');
   const first=fmtShort(x.dates[0]),last=fmtShort(x.dates[x.dates.length-1]);
   M.busy=true;M.msg=null;drawModal();
   try{

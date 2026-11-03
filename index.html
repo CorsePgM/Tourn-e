@@ -338,8 +338,8 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="03/11 22:33"</script>
-<script src="runtime.js?v=03112233"></script>
+<script>window.__BUILD="03/11 22:36"</script>
+<script src="runtime.js?v=03112236"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -1000,7 +1000,6 @@ function formExport(){
   return `<div class="f" style="display:flex;flex-direction:column;gap:12px">
     <div class="grid2">${fld('f_efrom','Du',m.from,'date')}${fld('f_eto','Au',m.to,'date')}</div>
     <div class="card" style="gap:6px"><h2>Journées à envoyer <span><button class="linkbtn" data-act="expall">Tout</button> · <button class="linkbtn" data-act="expnone">Aucun</button></span></h2>${list}</div>
-    <label class="field"><span>Adresse mail du destinataire</span><input type="email" id="f_email" value="${esc(m.email||'')}" placeholder="exemple@gmail.com" autocomplete="email" inputmode="email"></label>
     <small style="color:var(--muted)">Le fichier contient un résumé puis un onglet par jour, avec uniquement les passages cochés « vu » et les bilans faits.</small>
     ${m.msg?`<div class="${m.msg.ok?'okmsg':'err'}">${esc(m.msg.t)}</div>`:''}
     <div class="formbtns"><button class="btn ghost" data-act="expdl" ${m.busy?'disabled':''}>Télécharger le fichier</button><button class="btn" data-act="expsend" ${m.busy?'disabled':''}>${m.busy?'Envoi en cours…':'Envoyer par mail'}</button></div></div>`;
@@ -1044,7 +1043,6 @@ async function downloadExport(){
 }
 async function sendExport(){
   const email=(M.email||'').trim();
-  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){M.msg={t:'Indiquez une adresse mail valide.'};drawModal();return}
   const x=exportPrep(); if(!x) return;
   const mcp=window.claude&&await window.claude.use('mcp');
   if(!mcp){M.msg={t:'L\'envoi par mail n\'est pas disponible ici. Utilisez « Télécharger le fichier » puis envoyez-le vous-même.'};drawModal();return}
@@ -1055,7 +1053,7 @@ async function sendExport(){
     var RR=await mcp.callTool('Gmail','send_message',{to:[email],subject:'Tournées infirmières'+(x.dates.length>1?' du '+first+' au '+last:' du '+first),
       body:'Bonjour,\n\nVoici le relevé des tournées en pièce jointe (un onglet par jour) :\n\n'+lines+'\n\nEnvoyé depuis l\'application Tournée d\'Annabelle la criminelle.',
       attachments:[{content:XLSX.write(x.wb,{bookType:'xlsx',type:'base64'}),filename:x.fname,mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}]});
-    store.set('mail',email); M.msg={ok:true,t:window.__PWA?(((RR||{}).payload||{}).how==='mailto'?'Le mail s\'ouvre : joignez le fichier Excel qui vient d\'être téléchargé.':'Choisissez Gmail : un fichier par jour est joint. Destinataire : '+email+'.'):'Envoyé à '+email+' ('+x.dates.length+' journée'+(x.dates.length>1?'s':'')+').'};
+    store.set('mail',email); M.msg={ok:true,t:window.__PWA?(((RR||{}).payload||{}).how==='mailto'?'Le mail s\'ouvre : joignez le fichier Excel qui vient d\'être téléchargé.':'Choisissez Outlook (ou votre messagerie) : un fichier par jour est joint, il reste à ajouter le destinataire.'):'Envoyé à '+email+' ('+x.dates.length+' journée'+(x.dates.length>1?'s':'')+').'};
   }catch(e){
     const c=e&&e.code;
     if(c==='declined'){M.busy=false;drawModal();return}

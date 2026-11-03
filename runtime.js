@@ -108,7 +108,7 @@
         }
         /* sinon : le mail s'ouvre avec destinataire, objet et résumé ; le fichier Excel est téléchargé pour le joindre */
         saveFile(new File([b64ToBlob(at.content, at.mimeType)], at.filename, {type: at.mimeType}));
-        setTimeout(() => { location.href = 'mailto:' + encodeURIComponent(to) + '?subject=' + encodeURIComponent(a.subject) +
+        setTimeout(() => { location.href = 'mailto:' + (to ? encodeURIComponent(to) : '') + '?subject=' + encodeURIComponent(a.subject) +
           '&body=' + encodeURIComponent(a.body + '\n\n(Fichier Excel joint : ' + at.filename + ', dans Téléchargements.)'); }, 400);
         return {payload:{how:'mailto'}};
       }

@@ -95,12 +95,18 @@
       callTool: async (server, tool, a) => {
         if(tool !== 'send_message') throw {code:'tool_error', message:'indisponible'};
         const at = (a.attachments || [])[0], to = (a.to || []).join(',');
-        /* Android ne laisse pas partager un fichier Excel : on joint un fichier par jour, lisible dans Excel / Sheets */
+        /* Android ne laisse pas partager un fichier Excel : on joint un PDF par jour */
         let files = [];
         try {
           const wb = XLSX.read(at.content, {type:'base64'});
-          files = wb.SheetNames.map(n => new File(['\ufeff' + XLSX.utils.sheet_to_csv(wb.Sheets[n], {FS:';'})],
-            n.replace(/[^\w\-é ]+/g, '').trim().replace(/\s+/g, '_') + '.csv', {type:'text/csv'}));
+          /* un PDF par jour : tout le texte s'affiche, les cellules longues passent à la ligne */
+          files = wb.SheetNames.map(n => {
+            const t = XLSX.utils.sheet_to_json(wb.Sheets[n], {header:1, defval:'', blankrows:true});
+            const pdf = window.makeTablePdf({title: String((t[0]||[])[0]||n), subtitle: String((t[1]||[])[0]||''),
+              head: (t[2]||[]).map(String), rows: t.slice(3).filter(r => r.some(c => String(c).trim())).map(r => r.map(String)),
+              widths: [8,24,10,44,12]});
+            return new File([pdf], n.replace(/[^\w\-é ]+/g, '').trim().replace(/\s+/g, '_') + '.pdf', {type:'application/pdf'});
+          });
         } catch(_){}
         if(files.length && navigator.canShare && navigator.canShare({files})){
           try { await navigator.share({files, title: a.subject, text: a.body}); return {payload:{how:'shared'}}; }

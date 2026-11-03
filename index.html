@@ -339,8 +339,9 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="03/11 22:43"</script>
-<script src="runtime.js?v=03112243"></script>
+<script>window.__BUILD="03/11 22:54"</script>
+<script src="runtime.js?v=03112254"></script>
+<script src="pdf.js?v=03112254"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -1055,7 +1056,7 @@ async function sendExport(){
     var RR=await mcp.callTool('Gmail','send_message',{to:[email],subject:'Tournées infirmières'+(x.dates.length>1?' du '+first+' au '+last:' du '+first),
       body:'',
       attachments:[{content:XLSX.write(x.wb,{bookType:'xlsx',type:'base64'}),filename:x.fname,mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}]});
-    store.set('mail',email); M.msg={ok:true,t:window.__PWA?(((RR||{}).payload||{}).how==='mailto'?'Le mail s\'ouvre : joignez le fichier Excel qui vient d\'être téléchargé.':'Choisissez Outlook (ou votre messagerie) : un fichier par jour est joint, il reste à ajouter le destinataire.'):'Envoyé à '+email+' ('+x.dates.length+' journée'+(x.dates.length>1?'s':'')+').'};
+    store.set('mail',email); M.msg={ok:true,t:window.__PWA?(((RR||{}).payload||{}).how==='mailto'?'Le mail s\'ouvre : joignez le fichier Excel qui vient d\'être téléchargé.':'Choisissez Outlook (ou votre messagerie) : un PDF par jour est joint, il reste à ajouter le destinataire.'):'Envoyé à '+email+' ('+x.dates.length+' journée'+(x.dates.length>1?'s':'')+').'};
   }catch(e){
     const c=e&&e.code;
     if(c==='declined'){M.busy=false;drawModal();return}

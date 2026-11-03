@@ -1,7 +1,7 @@
 /* Service worker : l'appli s'ouvre même sans réseau. */
-const VERSION = 'tournee-1793742181';
+const VERSION = 'tournee-1793742857';
 const SHELL = ['./', './index.html', './manifest.webmanifest',
-  './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png', './runtime.js'];
+  './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png', './runtime.js', './pdf.js'];
 const CDN = ['cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', e => {

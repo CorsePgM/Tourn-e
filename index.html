@@ -692,12 +692,12 @@ function hdr(){
   if(S.tab==='jour') return `<div class="datebar">
     <button class="iconbtn" data-act="day" data-n="-1" aria-label="Jour précédent">${ICON.prev}</button>
     <div class="d"><label for="datepick">${esc(fmtLong(S.date))}</label><input type="date" id="datepick" value="${S.date}" aria-label="Choisir la date"></div>
-    ${S.date!==today()?'<button class="pillbtn" data-act="today">Aujourd\'hui</button>':''}
+    ${S.date!==today()?'<button class="pillbtn" data-act="today" aria-label="Revenir à aujourd\'hui">Retour</button>':''}
     <button class="iconbtn" data-act="day" data-n="1" aria-label="Jour suivant">${ICON.next}</button></div>`;
   if(S.tab==='semaine'){const end=addDays(S.week,6);return `<div class="datebar">
     <button class="iconbtn" data-act="week" data-n="-7" aria-label="Semaine précédente">${ICON.prev}</button>
     <div class="d"><label>${LAND.matches?esc(rollLabel(S.week)):'Semaine du '+esc(parse(S.week).toLocaleDateString('fr-FR',{day:'numeric',month:'long'}))}</label></div>
-    ${LAND.matches?'<button class="pillbtn" data-act="thisweek">Aujourd\'hui</button>':S.week!==monday(today())?'<button class="pillbtn" data-act="thisweek">Cette semaine</button>':''}
+    ${LAND.matches?'<button class="pillbtn" data-act="thisweek" aria-label="Revenir à aujourd\'hui">Retour</button>':S.week!==monday(today())?'<button class="pillbtn" data-act="thisweek" aria-label="Revenir à cette semaine">Retour</button>':''}
     <button class="iconbtn" data-act="week" data-n="7" aria-label="Semaine suivante">${ICON.next}</button></div><div class="hdrrow">${LAND.matches?`<span class="zoomgrp" role="group" aria-label="Zoom"><button class="iconbtn zb" data-act="zoom" data-n="-1" aria-label="Voir plus de jours">−</button><span class="zl">${String(Math.round(S.zoom*10)/10).replace('.',',')} j</span><button class="iconbtn zb" data-act="zoom" data-n="1" aria-label="Zoomer sur les jours">+</button></span>`:''}${tourneeSeg('tournee',S.tournee)}<button class="pillbtn rotbtn ${S.rot?'on':''}" data-act="rot" aria-pressed="${S.rot}" title="Afficher mes jours travaillés">ROT</button>${S.canWrite?'<button class="bilbtn" data-act="newbilanw">＋ Bilan</button>':''}</div>`;}
   return `<div class="datebar"><div class="d"><label>Patients, soins et ordonnances</label></div></div>`;
 }

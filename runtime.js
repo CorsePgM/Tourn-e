@@ -72,6 +72,10 @@
   const DB = { doc: docW, collection: colW };
 
   /* ---------- fichiers : partage Android (Gmail, Drive…) ou téléchargement ---------- */
+  function saveFile(file){
+    const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name;
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  }
   async function shareOrSave(file, title, text){
     if(navigator.canShare && navigator.canShare({files:[file]})){
       try { await navigator.share({files:[file], title, text}); return 'shared'; }
@@ -86,14 +90,27 @@
   const caps = {
     db: () => Promise.resolve(DB),
     user: () => Promise.resolve({ can: () => true, canEdit: () => true, isOwner: () => true, id: async () => 'local', me: async () => ({name:''}) }),
-    downloads: () => Promise.resolve({ save: ({filename, data}) => shareOrSave(new File([data], filename, {type: data.type || 'application/octet-stream'}), filename) }),
+    downloads: () => Promise.resolve({ save: async ({filename, data}) => { saveFile(new File([data], filename, {type: data.type || 'application/octet-stream'})); return 'saved'; } }),
     mcp: () => Promise.resolve({
       callTool: async (server, tool, a) => {
         if(tool !== 'send_message') throw {code:'tool_error', message:'indisponible'};
-        const at = (a.attachments || [])[0];
-        const file = new File([b64ToBlob(at.content, at.mimeType)], at.filename, {type: at.mimeType});
-        const how = await shareOrSave(file, a.subject, 'À envoyer à : ' + (a.to || []).join(', ') + '\n\n' + a.body);
-        return {payload: {how}};
+        const at = (a.attachments || [])[0], to = (a.to || []).join(',');
+        /* Android ne laisse pas partager un fichier Excel : on joint un fichier par jour, lisible dans Excel / Sheets */
+        let files = [];
+        try {
+          const wb = XLSX.read(at.content, {type:'base64'});
+          files = wb.SheetNames.map(n => new File(['\ufeff' + XLSX.utils.sheet_to_csv(wb.Sheets[n], {FS:';'})],
+            n.replace(/[^\w\-é ]+/g, '').trim().replace(/\s+/g, '_') + '.csv', {type:'text/csv'}));
+        } catch(_){}
+        if(files.length && navigator.canShare && navigator.canShare({files})){
+          try { await navigator.share({files, title: a.subject, text: a.body}); return {payload:{how:'shared'}}; }
+          catch(e){ if(e && e.name === 'AbortError') throw {code:'declined'}; }
+        }
+        /* sinon : le mail s'ouvre avec destinataire, objet et résumé ; le fichier Excel est téléchargé pour le joindre */
+        saveFile(new File([b64ToBlob(at.content, at.mimeType)], at.filename, {type: at.mimeType}));
+        setTimeout(() => { location.href = 'mailto:' + encodeURIComponent(to) + '?subject=' + encodeURIComponent(a.subject) +
+          '&body=' + encodeURIComponent(a.body + '\n\n(Fichier Excel joint : ' + at.filename + ', dans Téléchargements.)'); }, 400);
+        return {payload:{how:'mailto'}};
       }
     })
   };

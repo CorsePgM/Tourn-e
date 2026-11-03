@@ -1045,10 +1045,10 @@ async function sendExport(){
   const first=fmtShort(x.dates[0]),last=fmtShort(x.dates[x.dates.length-1]);
   M.busy=true;M.msg=null;drawModal();
   try{
-    await mcp.callTool('Gmail','send_message',{to:[email],subject:'Tournées infirmières'+(x.dates.length>1?' du '+first+' au '+last:' du '+first),
+    var RR=await mcp.callTool('Gmail','send_message',{to:[email],subject:'Tournées infirmières'+(x.dates.length>1?' du '+first+' au '+last:' du '+first),
       body:'Bonjour,\n\nVoici le relevé des tournées en pièce jointe (un onglet par jour) :\n\n'+lines+'\n\nEnvoyé depuis l\'application Tournée d\'Annabelle la criminelle.',
       attachments:[{content:XLSX.write(x.wb,{bookType:'xlsx',type:'base64'}),filename:x.fname,mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}]});
-    store.set('mail',email); M.msg={ok:true,t:window.__PWA?'Fichier prêt : choisissez Gmail, puis l\'adresse '+email+'.':'Envoyé à '+email+' ('+x.dates.length+' journée'+(x.dates.length>1?'s':'')+').'};
+    store.set('mail',email); M.msg={ok:true,t:window.__PWA?(((RR||{}).payload||{}).how==='mailto'?'Le mail s\'ouvre : joignez le fichier Excel qui vient d\'être téléchargé.':'Choisissez Gmail : un fichier par jour est joint. Destinataire : '+email+'.'):'Envoyé à '+email+' ('+x.dates.length+' journée'+(x.dates.length>1?'s':'')+').'};
   }catch(e){
     const c=e&&e.code;
     if(c==='declined'){M.busy=false;drawModal();return}

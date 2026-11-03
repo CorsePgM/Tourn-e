@@ -122,6 +122,7 @@
   window.pwaTools = () => {
     const n = daysSince(), late = n === null || n >= 7;
     return `<section class="card pwatools"><h2>Sauvegarde</h2>
+    <span style="font-size:.8rem;color:var(--muted)">Version de l'appli : ${window.__BUILD||'?'}</span>
     <span style="font-size:.9rem;${late ? 'color:var(--warn);font-weight:700' : 'color:var(--muted)'}">${n === null ? 'Aucune sauvegarde faite pour l\'instant.' : n === 0 ? 'Dernière sauvegarde : aujourd\'hui.' : 'Dernière sauvegarde : il y a ' + n + ' jour' + (n > 1 ? 's' : '') + '.'}
     Les données ne sont que dans ce téléphone : pensez à exporter une sauvegarde chaque semaine (Drive, Gmail…).</span>
     <div class="formbtns" style="justify-content:flex-start">
@@ -166,5 +167,21 @@
   }
 
   /* ---------- fonctionnement hors ligne ---------- */
-  if('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  /* mises à jour : vérifiées à chaque retour dans l'appli, appliquées toutes seules */
+  if('serviceWorker' in navigator){
+    const hadCtrl = !!navigator.serviceWorker.controller; let reloading = false, pendingReload = false;
+    const busy = () => { const a = document.activeElement; return (a && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) || !!(document.getElementById('modal')||{}).innerHTML; };
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if(!hadCtrl || reloading) return;
+      if(busy()){ pendingReload = true; toastMsg('Nouvelle version prête : elle s\'applique à la prochaine ouverture.'); return; }
+      reloading = true; location.reload();
+    });
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').then(reg => {
+      document.addEventListener('visibilitychange', () => {
+        if(document.visibilityState !== 'visible') return;
+        if(pendingReload){ reloading = true; location.reload(); return; }
+        reg.update().catch(() => {});
+      });
+    }).catch(() => {}));
+  }
 })();

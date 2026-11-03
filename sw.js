@@ -1,5 +1,5 @@
 /* Service worker : l'appli s'ouvre même sans réseau. */
-const VERSION = 'tournee-1793741307';
+const VERSION = 'tournee-1793741633';
 const SHELL = ['./', './index.html', './manifest.webmanifest',
   './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png', './runtime.js'];
 const CDN = ['cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
@@ -31,10 +31,11 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url);
   if (url.origin === location.origin) {
     // pages et fichiers de l'appli : réseau d'abord (pour les mises à jour), sinon la copie gardée
-    e.respondWith(fetch(req).then(res => {
+    // GitHub garde les pages 10 min en cache : on redemande toujours la dernière version
+    e.respondWith(fetch(url.href, {cache: 'no-cache', credentials: 'same-origin'}).then(res => {
       if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }
       return res;
-    }).catch(() => caches.match(req).then(r => r || (req.mode === 'navigate' ? caches.match('./index.html') : undefined))));
+    }).catch(() => caches.match(req, {ignoreSearch: true}).then(r => r || (req.mode === 'navigate' ? caches.match('./index.html') : undefined))));
     return;
   }
   if (CDN.includes(url.hostname)) {

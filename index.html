@@ -167,6 +167,7 @@ textarea{resize:vertical;min-height:60px}
 .daylist dd{margin:0;display:flex;flex-wrap:wrap;gap:4px 6px;min-width:0}
 .mini{display:inline-flex;align-items:center;gap:5px;border-radius:7px;padding:2px 7px;background:var(--surface-2);border:1px solid var(--line);font-size:.84rem}
 .bil{color:var(--warn);font-weight:700;font-size:.85rem}
+.bhsel{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:4px 6px;font-weight:700;font-variant-numeric:tabular-nums;font-size:.9rem;width:auto}
 .hdrrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .bilbtn{border:0;border-radius:999px;padding:6px 12px;font-weight:800;font-size:.85rem;background:var(--bad);color:#fff}
 .top .bilbtn{padding:3px 10px;font-size:.78rem}
@@ -485,6 +486,9 @@ function cadenceLabel(s){
   return 'Tous les '+c+' jours'+(dep?' dès le '+fmtShort(dep):'');
 }
 /* tournée d'un patient pour un jour donné : celle de sa fiche, sauf changement ponctuel ce jour-là */
+function bhSelect(id,h){let o=`<option value="" ${h?'':'selected'}>--:--</option>`;for(let m=6*60;m<=20*60;m+=15){const x=fromMin(m);o+=`<option ${x===h?'selected':''}>${x}</option>`}
+  if(h&&!o.includes('>'+h+'<'))o+=`<option selected>${esc(h)}</option>`;
+  return S.canWrite?`<select class="bhsel" data-bid="${esc(id)}" aria-label="Heure du bilan">${o}</select>`:(h?'<b>'+esc(h)+'</b> · ':'')}
 function tourOf(pid,d){const o=((S.dayT||{})[d]||{})[pid];return o||(S.patients[pid]||{}).tournee}
 function visitesDu(d,tournee){
   const wd=wdIdx(d);
@@ -730,7 +734,7 @@ function vJour(){
     ${al.length?`<button class="alertchip ${nbBad?'bad':''}" data-act="goalerts">⚠ ${al.length} ordonnance${al.length>1?'s':''}</button>`:'<span class="status ok">Ordonnances à jour</span>'}
     <div class="bar"><i style="width:${all.length?Math.round((nbVu+nbAbs)/all.length*100):0}%"></i></div></div>`;
   h+=`<div style="display:flex;flex-direction:column;gap:8px">${tourneeSeg('tournee',S.tournee)}${seg('vuFilter',[['tous','Tous'],['avoir','À voir'],['vus','Vus']],S.vuFilter)}</div>`;
-  if(bil.length) h+=`<div class="banner"><h3>Bilans du jour</h3>${bil.map(([id,b])=>`<label class="checkrow bilrow ${b.fait?'done':''}"><input type="checkbox" data-act="bilan" data-id="${id}" ${b.fait?'checked':''} ${S.canWrite?'':'disabled'}><span class="t">${b.heure?'<b>'+esc(b.heure)+'</b> · ':''}<b>${esc(fullName(S.patients[b.patientId]))}</b>${b.detail?' · '+esc(b.detail):''}</span></label>`).join('')}</div>`;
+  if(bil.length) h+=`<div class="banner"><h3>Bilans du jour</h3>${bil.map(([id,b])=>`<label class="checkrow bilrow ${b.fait?'done':''}"><input type="checkbox" data-act="bilan" data-id="${id}" ${b.fait?'checked':''} ${S.canWrite?'':'disabled'}>${bhSelect(id,b.heure)}<span class="t"><b>${esc(fullName(S.patients[b.patientId]))}</b>${b.detail?' · '+esc(b.detail):''}</span></label>`).join('')}</div>`;
   if(!all.length) h+=`<div class="empty"><b>Aucun passage prévu</b><span>Rien n'est programmé ce ${esc(fmtLong(S.date))}${S.tournee!=='Toutes'?' sur la tournée '+esc(S.tournee):''}.</span></div>`;
   else if(!list.length) h+=`<div class="empty"><b>${S.vuFilter==='vus'?'Aucun patient vu pour l\'instant':'Tous les patients ont été vus'}</b></div>`;
   CRENEAUX.forEach(c=>{
@@ -892,7 +896,7 @@ function viewPatient(id,p){
   h+='</div>';
   if(ex.length){h+=`<div class="card"><h2>Passages exceptionnels</h2>${ex.map(([sid,s])=>`<div class="row" style="display:flex;justify-content:space-between;gap:8px;align-items:center"><span style="min-width:0"><b>${esc(fmtShort(s.date))}</b> · ${esc(creneauxOf(s).map(c=>c+(heureOf(s,c)?' '+heureOf(s,c):'')).join(' + '))} · ${esc((s.soins||[]).filter(Boolean).join(' + '))}</span>${S.canWrite?`<button class="linkbtn" style="color:var(--bad)" data-act="delexc" data-id="${sid}">Retirer</button>`:''}</div>`).join('')}</div>`;}
   h+=`<div class="card"><h2>Bilans ${S.canWrite?'<button class="linkbtn" data-act="newbilan">+ Programmer</button>':''}</h2>`;
-  h+=bl.length?bl.map(([bid,b])=>`<div class="row" style="display:flex;justify-content:space-between;gap:8px;align-items:center"><label class="checkrow bilrow ${b.fait?'done':''}"><input type="checkbox" data-act="bilan" data-id="${bid}" ${b.fait?'checked':''} ${S.canWrite?'':'disabled'}><span class="t">${esc(fmtShort(b.date))}${b.heure?' à '+esc(b.heure):''}${b.detail?' · '+esc(b.detail):''}</span></label>${S.canWrite?`<button class="linkbtn" style="color:var(--bad)" data-act="delbilan" data-id="${bid}">Retirer</button>`:''}</div>`).join(''):'<span style="color:var(--muted)">Aucun bilan programmé.</span>';
+  h+=bl.length?bl.map(([bid,b])=>`<div class="row" style="display:flex;justify-content:space-between;gap:8px;align-items:center"><label class="checkrow bilrow ${b.fait?'done':''}"><input type="checkbox" data-act="bilan" data-id="${bid}" ${b.fait?'checked':''} ${S.canWrite?'':'disabled'}>${bhSelect(bid,b.heure)}<span class="t">${esc(fmtShort(b.date))}${b.detail?' · '+esc(b.detail):''}</span></label>${S.canWrite?`<button class="linkbtn" style="color:var(--bad)" data-act="delbilan" data-id="${bid}">Retirer</button>`:''}</div>`).join(''):'<span style="color:var(--muted)">Aucun bilan programmé.</span>';
   h+='</div>';
   if(S.canWrite) h+= M.confirm?`<div class="confirm"><b>Supprimer ${esc(fullName(p))} ?</b><span>La fiche, tous ses soins et ses bilans seront supprimés.</span><div class="formbtns"><button class="btn ghost" data-act="delno">Annuler</button><button class="btn danger" data-act="delyes">Supprimer</button></div></div>`
     :`<div><button class="linkbtn" style="color:var(--bad)" data-act="delp">Supprimer ce patient</button></div>`;
@@ -1344,6 +1348,7 @@ document.addEventListener('change',e=>{
     const dr={date:val('f_xdate')||M.date,soins:[0,1,2].map(i=>val('f_xs'+i)).filter(Boolean),...readX(),vu:!!(document.getElementById('f_xvu')||{}).checked};
     openModal({pid:null,mode:'editp',excDraft:dr});return}
   if(el.dataset.act==='tache'){const id=el.dataset.id;w([{t:'update',path:'taches/'+id,data:{fait:el.checked}}])}
+  if(el.classList&&el.classList.contains('bhsel')){const id=el.dataset.bid;w([{t:'update',path:'bilans/'+id,data:{heure:el.value}}]).then(ok=>{if(ok)toast(el.value?'Bilan à '+el.value:'Heure du bilan retirée')});return}
   if(el.dataset.act==='bilan'){const id=el.dataset.id;w([{t:'update',path:'bilans/'+id,data:{fait:el.checked}}])}
 });
 document.addEventListener('input',e=>{

@@ -121,17 +121,32 @@
     try { await shareOrSave(new File([JSON.stringify(out, null, 1)], name, {type:'application/json'}), name, 'Sauvegarde de la tournée');
       localStorage.setItem(LAST, String(Date.now())); toastMsg('Sauvegarde prête.'); notify(); } catch(_){}
   });
-  document.addEventListener('change', async e => {
-    if(e.target.id !== 'pwa_import' || !e.target.files[0]) return;
+  function importText(txt){
     try{
-      const j = JSON.parse(await e.target.files[0].text()), data = j.data || j;
+      const j = JSON.parse(txt), data = j.data || j;
+      if(!data || typeof data !== 'object' || !(data.patients || data.soins)) throw 0;
       let n = 0;
       for(const c of Object.keys(data)){ for(const [id, d] of Object.entries(data[c] || {})){ DATA[c + '/' + id] = clone(d); n++; } }
       persist(); notify();
       toastMsg(n + ' éléments importés.');
     } catch(err2){ toastMsg('Import impossible : fichier non reconnu.'); }
+  }
+  document.addEventListener('change', async e => {
+    if(e.target.id !== 'pwa_import' || !e.target.files[0]) return;
+    importText(await e.target.files[0].text());
     e.target.value = '';
   });
+  /* fichier reçu par « Partager → Tournée » (WhatsApp, Gmail…) */
+  if(/[?&]partage=1/.test(location.search)){
+    history.replaceState(null, '', location.pathname);
+    window.addEventListener('load', async () => {
+      try{
+        const c = await caches.open('partage'), r = await c.match('fichier');
+        if(r){ const txt = await r.text(); await c.delete('fichier'); setTimeout(() => importText(txt), 400); }
+        else toastMsg('Aucun fichier reçu.');
+      } catch(_){ toastMsg('Import impossible.'); }
+    });
+  }
 
   /* ---------- fonctionnement hors ligne ---------- */
   if('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));

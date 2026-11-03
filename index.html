@@ -763,6 +763,7 @@ function visitCard({id,sid,excSids,s,p}){
         ${maps?`<a class="act" href="${esc(maps)}" target="_blank" rel="noopener">${ICON.go}Y aller</a>`:''}
         ${tel?`<a class="act" href="tel:${esc(tel)}" data-act="call" data-tel="${esc(p.tel)}">${ICON.call}Appeler <span class="tel">${esc(p.tel)}</span></a>`:''}
         ${fixe?`<a class="act" href="tel:${esc(fixe)}" data-act="call" data-tel="${esc(p.fixe)}">${ICON.call}Fixe <span class="tel">${esc(p.fixe)}</span></a>`:''}
+        ${!tel&&!fixe&&S.canWrite?`<button class="act" data-act="addtel" data-pid="${esc(s.patientId)}">${ICON.call}Ajouter un numéro</button>`:''}
       </div>
       <div style="display:flex;gap:16px;flex-wrap:wrap">${S.canWrite?`<button class="linkbtn" data-act="quicknote" data-pid="${esc(s.patientId)}">📝 Note rapide</button>`:''}${S.canWrite?`<button class="linkbtn" data-act="quickexc" data-pid="${esc(s.patientId)}" data-c="${esc(s.creneau||'Matin')}">＋ Soin exceptionnel aujourd'hui</button>`:''}<button class="linkbtn" data-act="openpatient" data-id="${esc(s.patientId)}">Voir la fiche complète</button>${(excSids||[]).length&&S.canWrite?`<button class="linkbtn" style="color:var(--bad)" data-act="delexc" data-id="${esc(excSids.join(','))}">${s.exceptionnel?'Retirer ce passage exceptionnel':'Retirer le soin exceptionnel ajouté'}</button>`:''}</div>
     </div>`:''}</article>`;
@@ -1296,6 +1297,7 @@ document.addEventListener('click',e=>{
     case 'backbil': openModal({pid:null,mode:'bilan',date:M.bilDraft.date,bdraft:M.bilDraft});break;
     case 'backexc': openModal({pid:null,mode:'exc',date:M.excDraft.date,draft:M.excDraft});break;
     case 'openexport': openExport();break;
+    case 'addtel': openModal({pid:el.dataset.pid,mode:'editp'});setTimeout(()=>{const t=document.getElementById('f_tel');if(t){t.scrollIntoView({block:'center'});t.focus()}},80);break;
     case 'quicknote': openModal({pid:null,mode:'note',npid:el.dataset.pid});setTimeout(()=>{const t=document.getElementById('f_note');if(t)t.focus()},50);break;
     case 'quickexc': {const c=el.dataset.c;openModal({pid:null,mode:'exc',date:S.date,quick:true,draft:{pid:el.dataset.pid,creneau:c,creneaux:[c]}});break;}
     case 'pick': openPicker(el.dataset.for,el.dataset.req==='1');break;

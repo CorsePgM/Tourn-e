@@ -1,5 +1,5 @@
 /* Service worker : l'appli s'ouvre même sans réseau. */
-const VERSION = 'tournee-1793735212';
+const VERSION = 'tournee-1793735750';
 const SHELL = ['./', './index.html', './manifest.webmanifest',
   './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png', './runtime.js'];
 const CDN = ['cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
@@ -9,11 +9,24 @@ self.addEventListener('install', e => {
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
-    .then(keys => Promise.all(keys.filter(k => k !== VERSION && k !== 'cdn').map(k => caches.delete(k))))
+    .then(keys => Promise.all(keys.filter(k => k !== VERSION && k !== 'cdn' && k !== 'partage').map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', e => {
   const req = e.request;
+  /* « Partager → Tournée » : on garde le fichier reçu puis on ouvre l'appli qui l'importe */
+  if (req.method === 'POST' && new URL(req.url).pathname.endsWith('/partage')) {
+    e.respondWith((async () => {
+      try {
+        const form = await req.formData(), f = form.get('fichier');
+        const c = await caches.open('partage');
+        if (f && f.size) await c.put('fichier', new Response(await f.text()));
+        else if (form.get('text')) await c.put('fichier', new Response(form.get('text')));
+      } catch (_) {}
+      return Response.redirect('./?partage=1', 303);
+    })());
+    return;
+  }
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin === location.origin) {

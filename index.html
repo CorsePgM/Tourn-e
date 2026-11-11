@@ -345,9 +345,9 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="11/11 22:47"</script>
-<script src="runtime.js?v=11112247"></script>
-<script src="pdf.js?v=11112247"></script>
+<script>window.__BUILD="11/11 22:52"</script>
+<script src="runtime.js?v=11112252"></script>
+<script src="pdf.js?v=11112252"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -786,7 +786,7 @@ function drawTC(){
   const sec=k=>`<section class="tcsec"><div class="tchead"><b>${k.toUpperCase()}</b><em>${TC.L[k].length}</em></div>
     <div class="tclist">${TC.L[k].map(({id,n},i)=>{const on=TC.sel&&TC.sel.k===k&&TC.sel.i===i,def=(S.patients[id]||{}).tournee||'',mv=k!=='Sans tournée'&&def!==k;
       return `<div class="tcitem ${on?'on':''}"><button class="tcname ${tclass(k)} ${mv?'moved':''}" data-tc="sel" data-k="${esc(k)}" data-i="${i}" aria-expanded="${on}">${esc(n)}${mv?`<small>basculé${def?' · d\'habitude en '+esc(def):''}</small>`:''}</button>
-      ${on?`<div class="tcmenu">${['Montagne','Plaine'].filter(t=>t!==k).map(t=>`<button class="btn" data-tc="move" data-to="${t}">Passer en ${t}</button>`).join('')}<button class="btn ghost" data-tc="del">Retirer de la liste</button></div>`:''}</div>`}).join('')||'<div class="tcnone">Personne</div>'}</div></section>`;
+      ${on?`<div class="tcmenu">${['Montagne','Plaine'].filter(t=>t!==k).map(t=>`<button class="btn" data-tc="move" data-to="${t}">Passer en ${t}</button>`).join('')}</div>`:''}</div>`}).join('')||'<div class="tcnone">Personne</div>'}</div></section>`;
   const st=c.querySelector('.sheet'),y=st?st.scrollTop:0;
   c.innerHTML=`<div class="overlay" style="z-index:30" data-tc="bg"><div class="sheet" role="dialog" aria-modal="true" aria-label="Liste pour la collègue">
     <div class="head"><h2>Planning tournée</h2><button class="iconbtn" data-tc="close" aria-label="Fermer">${ICON.close}</button></div>
@@ -820,7 +820,8 @@ function tcClick(e){
   if(a==='copy'){
     const txt=['Montagne','Plaine','Sans tournée'].filter(k=>k!=='Sans tournée'||TC.L[k].length).map(k=>k.toUpperCase()+' ('+TC.L[k].length+') :\n'+(TC.L[k].map(x=>x.n).join('\n')||'Personne'))
       .concat(TC.bil.length?['BILANS ('+TC.bil.length+') :\n'+TC.bil.join('\n')]:[]).join('\n\n');
-    copyText(txt,'Liste copiée : collez-la dans le message à votre collègue.')}
+    const txt2='Tournée du '+fmtLong(TC.d)+'\n\n'+txt;
+    copyText(txt2,'Liste copiée : collez-la dans le message à votre collègue.')}
 }
 function copyText(txt,ok){
   const fb=()=>{const ta=document.createElement('textarea');ta.value=txt;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;top:0;left:0;opacity:0';document.body.appendChild(ta);ta.select();

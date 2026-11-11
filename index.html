@@ -257,6 +257,7 @@ form.f{display:flex;flex-direction:column;gap:12px}
 .tchidbtn{display:flex;align-items:center;gap:8px;align-self:flex-start;background:none;border:1px dashed var(--line);border-radius:999px;padding:6px 12px;font-size:.85rem;font-weight:700;color:var(--muted);cursor:pointer}.tchidbtn em{font-style:normal;color:inherit}.tchidbtn span{font-size:.7rem}
 .tcname.hid{opacity:.8;border-style:dashed}
 .num.fixed{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}.num[data-act]{cursor:pointer}
+.detail .fullname{font-family:var(--f-display);font-weight:800;font-size:1.15rem;line-height:1.25;overflow-wrap:anywhere}
 .tcbtns{display:flex;gap:8px;position:sticky;bottom:calc(-20px - env(safe-area-inset-bottom,0px));background:var(--bg);padding:8px 0 calc(20px + env(safe-area-inset-bottom,0px));margin-bottom:calc(-20px - env(safe-area-inset-bottom,0px))}.tcbtns .btn{flex:1 1 0;padding:9px 10px;font-size:.88rem;min-height:0;line-height:1.2}.tcbtns .btn[disabled]{opacity:.45}
 .tcnone{color:var(--muted);font-size:.9rem;padding:4px 2px}
 .pksheet{max-height:88%;overflow:hidden;display:flex;flex-direction:column}
@@ -351,9 +352,9 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="11/11 23:49"</script>
-<script src="runtime.js?v=11112349"></script>
-<script src="pdf.js?v=11112349"></script>
+<script>window.__BUILD="11/11 23:58"</script>
+<script src="runtime.js?v=11112358"></script>
+<script src="pdf.js?v=11112358"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -896,6 +897,7 @@ function visitCard({id,sid,excSids,s,p,fix}){
       <button class="vcheck ${vu?'is':''} ${abs?'absent':''}" data-act="vu" data-id="${id}" ${S.canWrite?'':'disabled'} aria-pressed="${vu||abs}" aria-label="${vu?'Vu, appuyer pour annuler':abs?'Absent, appuyer pour annuler':'Marquer comme vu (appui long : absent)'}">${vu?ICON.check:abs?ICON.close:''}</button>
     </div>
     ${open?`<div class="detail">
+      <div class="fullname">${esc(fullName(p))}</div>
       <div class="who">${S.canWrite?`<button class="tag tagbtn ${tclass(p.tournee)}" data-act="asktournee" data-id="${id}" aria-label="Changer de tournée">${esc(p.tournee||'Sans tournée')}${p._defT?' (ce jour)':''} ⇄</button>`:(p.tournee?`<span class="tag ${tclass(p.tournee)}">${esc(p.tournee)}</span>`:'')}<span class="commune">${esc(p.adresse||'')}${p.commune?', '+esc(p.commune):''}</span></div>
       ${S.switchT===id?(()=>{const to=p.tournee==='Montagne'?'Plaine':'Montagne';return `<div class="confirm"><b>Voulez-vous vraiment passer ${esc(fullName(p))} ${p.tournee?'de '+esc(p.tournee)+' à ':'en '}${to} ${S.date===today()?'aujourd\'hui':'le '+esc(fmtLong(S.date))} seulement ?</b><span style="font-size:.85rem">${to===(p._defT||p.tournee)?'Il revient dans sa tournée habituelle.':'Les autres jours, il reste en '+esc(p._defT||p.tournee)+'.'}</span><div class="formbtns"><button class="btn ghost" data-act="tourneeno">Annuler</button><button class="btn" data-act="tourneeyes" data-pid="${esc(s.patientId)}" data-to="${to}">Passer en ${to} ce jour-là</button></div></div>`})():''}
       <div class="soins">${soins.map(x=>`<span>${esc(x)}</span>`).join('')}</div>

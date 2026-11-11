@@ -339,9 +339,9 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="11/11 18:31"</script>
-<script src="runtime.js?v=11111831"></script>
-<script src="pdf.js?v=11111831"></script>
+<script>window.__BUILD="11/11 20:13"</script>
+<script src="runtime.js?v=11112013"></script>
+<script src="pdf.js?v=11112013"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -756,15 +756,18 @@ function vJour(){
   h+=`<div class="exportcta"><button class="btn ghost" data-act="copytour">${ICON.copy} Copier la tournée pour ma collègue</button></div>`;
   return h;
 }
-/* texte de la journée : noms des patients, Montagne puis Plaine, chacun une seule fois */
+/* texte de la journée : noms des patients, Montagne puis Plaine, chacun une seule fois ; les bilans à la fin */
 function tourText(d){
-  const all=visitesDu(d,'Toutes'), bil=Object.values(S.bilans).filter(x=>x.date===d);
+  const all=visitesDu(d,'Toutes');
+  const bil=Object.values(S.bilans).filter(x=>x.date===d&&S.patients[x.patientId]).sort((x,y)=>String(x.heure||'99').localeCompare(String(y.heure||'99')));
   const part=t=>{const seen=new Set(),L=[];
-    all.filter(x=>(x.p.tournee||'')===t).map(x=>x.s.patientId).concat(bil.filter(x=>(tourOf(x.patientId,d)||'')===t).map(x=>x.patientId))
-      .forEach(id=>{if(seen.has(id)||!S.patients[id])return;seen.add(id);L.push(fullName(S.patients[id]))});
+    all.filter(x=>(x.p.tournee||'')===t).forEach(x=>{const id=x.s.patientId;if(seen.has(id)||!S.patients[id])return;seen.add(id);L.push(fullName(S.patients[id]))});
     return L;};
   const m=part('Montagne'),pl=part('Plaine'),sans=part('');
-  return 'MONTAGNE :\n'+(m.join('\n')||'Personne')+'\n\nPLAINE :\n'+(pl.join('\n')||'Personne')+(sans.length?'\n\nSANS TOURNÉE :\n'+sans.join('\n'):'');
+  let t='MONTAGNE :\n'+(m.join('\n')||'Personne')+'\n\nPLAINE :\n'+(pl.join('\n')||'Personne');
+  if(sans.length) t+='\n\nSANS TOURNÉE :\n'+sans.join('\n');
+  if(bil.length) t+='\n\nBILANS :\n'+bil.map(x=>{const tr=tourOf(x.patientId,d);return fullName(S.patients[x.patientId])+(tr?' ('+tr+')':'')}).join('\n');
+  return t;
 }
 function copyText(txt,ok){
   const fb=()=>{const ta=document.createElement('textarea');ta.value=txt;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;top:0;left:0;opacity:0';document.body.appendChild(ta);ta.select();

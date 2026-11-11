@@ -351,9 +351,9 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="11/11 23:40"</script>
-<script src="runtime.js?v=11112340"></script>
-<script src="pdf.js?v=11112340"></script>
+<script>window.__BUILD="11/11 23:47"</script>
+<script src="runtime.js?v=11112347"></script>
+<script src="pdf.js?v=11112347"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -1606,7 +1606,8 @@ function dgEnd(e){
   if(ids.join('|')===start.join('|')){render();return}
   const c=art.dataset.c||'Matin',base=BASE[c]||'06:00';
   /* nouvel ordre pour la tournée du patient déplacé : 6h00, 6h15, 6h30… */
-  const grp=arts.filter(a=>a.dataset.t===art.dataset.t);
+  /* les heures changées à la main ne bougent jamais : seuls les autres passages sont renumérotés */
+  const grp=arts.filter(a=>a.dataset.t===art.dataset.t&&!a.querySelector('.num.fixed'));
   const ops=grp.map((a,i)=>({t:'heure',date:S.date,id:a.dataset.vid,val:fromMin(toMin(base)+15*i)}));
   if(ops.length){w(ops);toast('Ordre modifié pour le '+fmtShort(S.date))} else render();
 }

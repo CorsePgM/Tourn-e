@@ -339,9 +339,9 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="03/11 22:54"</script>
-<script src="runtime.js?v=03112254"></script>
-<script src="pdf.js?v=03112254"></script>
+<script>window.__BUILD="11/11 18:24"</script>
+<script src="runtime.js?v=11111824"></script>
+<script src="pdf.js?v=11111824"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -408,6 +408,7 @@ const ICON={
   mail:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;vertical-align:-3px"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>',
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
   chev:'<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>',
+  copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;vertical-align:-3px"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>',
   close:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>'
 };
 
@@ -752,7 +753,32 @@ function vJour(){
    h+=`<section class="card rempl"><label class="checkrow"><input type="checkbox" id="f_remplon" ${r.on?'checked':''} ${S.canWrite?'':'disabled'}><span class="t"><b>Journée faite par une remplaçante</b></span></label>
      ${r.on?`<label class="field"><span>Prénom de la remplaçante</span><input type="text" id="f_remplnom" value="${esc(r.prenom||'')}" placeholder="Ex. Julie" autocomplete="off" autocapitalize="words" ${S.canWrite?'':'disabled'}></label>`:''}</section>`;}
   h+=exportCta();
+  h+=`<div class="exportcta"><button class="btn ghost" data-act="copytour">${ICON.copy} Copier la tournée pour ma collègue</button></div>`;
   return h;
+}
+/* texte de la journée, Montagne puis Plaine, à coller dans un message */
+function tourText(d){
+  const all=visitesDu(d,'Toutes');
+  const bil=Object.values(S.bilans).filter(b=>b.date===d);
+  const part=t=>{
+    const v=all.filter(x=>(x.p.tournee||'')===t), b=bil.filter(x=>(tourOf(x.patientId,d)||'')===t);
+    const L=[];
+    CRENEAUX.forEach(c=>{const it=v.filter(x=>(x.s.creneau||'Matin')===c);if(!it.length)return;
+      L.push(c);
+      it.forEach(x=>{const so=(x.s.soins||[]).filter(Boolean).join(' + ');
+        L.push('- '+x.s.heure+' '+fullName(x.p)+(x.p.commune?' ('+x.p.commune+')':'')+(so?' : '+so:''))})});
+    if(b.length){L.push('Bilans');b.sort((x,y)=>String(x.heure||'99').localeCompare(String(y.heure||'99'))).forEach(x=>{const p=S.patients[x.patientId]||{};
+      L.push('- '+(x.heure?x.heure+' ':'')+fullName(p)+(p.commune?' ('+p.commune+')':'')+(x.detail?' : '+x.detail:''))})}
+    return L.length?L.join('\n'):'Aucun passage';
+  };
+  let t='Tournée du '+fmtLong(d)+'\n\nMONTAGNE :\n'+part('Montagne')+'\n\nPLAINE :\n'+part('Plaine');
+  if(all.some(x=>!x.p.tournee)||bil.some(x=>!tourOf(x.patientId,d))) t+='\n\nSANS TOURNÉE :\n'+part('');
+  return t;
+}
+function copyText(txt,ok){
+  const fb=()=>{const ta=document.createElement('textarea');ta.value=txt;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;top:0;left:0;opacity:0';document.body.appendChild(ta);ta.select();
+    let r=false;try{r=document.execCommand('copy')}catch(_){}ta.remove();toast(r?ok:'Copie impossible ici : la tournée ne peut pas être copiée.')};
+  try{navigator.clipboard.writeText(txt).then(()=>toast(ok),fb)}catch(_){fb()}
 }
 function visitCard({id,sid,excSids,s,p}){
   const vu=S.vus[id]===true, abs=S.vus[id]==='absent', soins=(s.soins||[]).filter(Boolean);
@@ -1335,6 +1361,7 @@ document.addEventListener('click',e=>{
       const done=()=>toast('Numéro copié : '+n+'. Si l\'appel ne se lance pas, collez-le dans votre téléphone.');
       try{navigator.clipboard.writeText(n).then(done,()=>toast('Numéro : '+n))}catch(_){toast('Numéro : '+n)}
       break;}
+    case 'copytour': copyText(tourText(S.date),'Tournée copiée : collez-la dans le message à votre collègue.');break;
     case 'addimprevu': openModal({pid:null,mode:'exc',date:S.date,draft:{vu:true}});break;
     case 'expall': case 'expnone': (M.days||[]).forEach(x=>M.checked[x.d]=a==='expall');drawModal();break;
     case 'expsend': sendExport();break;

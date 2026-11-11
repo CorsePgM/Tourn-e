@@ -256,6 +256,7 @@ form.f{display:flex;flex-direction:column;gap:12px}
 .tcbtnrow{gap:8px;flex-wrap:wrap}.tcbtnrow .btn{flex:1 1 140px}
 .tchidbtn{display:flex;align-items:center;gap:8px;align-self:flex-start;background:none;border:1px dashed var(--line);border-radius:999px;padding:6px 12px;font-size:.85rem;font-weight:700;color:var(--muted);cursor:pointer}.tchidbtn em{font-style:normal;color:inherit}.tchidbtn span{font-size:.7rem}
 .tcname.hid{opacity:.8;border-style:dashed}
+.num.fixed{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}.num[data-act]{cursor:pointer}
 .tcbtns{display:flex;gap:8px;position:sticky;bottom:calc(-20px - env(safe-area-inset-bottom,0px));background:var(--bg);padding:8px 0 calc(20px + env(safe-area-inset-bottom,0px));margin-bottom:calc(-20px - env(safe-area-inset-bottom,0px))}.tcbtns .btn{flex:1 1 0;padding:9px 10px;font-size:.88rem;min-height:0;line-height:1.2}.tcbtns .btn[disabled]{opacity:.45}
 .tcnone{color:var(--muted);font-size:.9rem;padding:4px 2px}
 .pksheet{max-height:88%;overflow:hidden;display:flex;flex-direction:column}
@@ -350,9 +351,9 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="11/11 23:19"</script>
-<script src="runtime.js?v=11112319"></script>
-<script src="pdf.js?v=11112319"></script>
+<script>window.__BUILD="11/11 23:40"</script>
+<script src="runtime.js?v=11112340"></script>
+<script src="pdf.js?v=11112340"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -525,13 +526,18 @@ function visitesDu(d,tournee){
        (x.s.soins||[]).filter(Boolean).forEach(t=>{if(!m.s.soins.includes(t))m.s.soins.push(t)});
        if(x.s.heure&&(!m.s.heure||x.s.heure<m.s.heure))m.s.heure=x.s.heure}
      return acc},{map:{},list:[]}).list
-   .map(x=>{const h=((S.dayH||{})[d]||{})[x.id];return h?Object.assign({},x,{s:Object.assign({},x.s,{heure:h}),moved:true}):x})
+   .map(x=>{const dh=((S.dayH||{})[d]||{})[x.id],c=x.s.creneau||'Matin';
+     /* heure fixée à la main : « HH:MM! » pour ce jour seulement, ou hfix dans le soin pour tous les jours */
+     let fix=null;if(dh&&/!$/.test(dh))fix={h:dh.slice(0,-1),day:true};
+     else if(!dh){const sf=x.sids.map(id=>S.soins[id]).find(o=>o&&o.hfix&&o.hfix[c]);if(sf)fix={h:sf.hfix[c],day:false}}
+     const h=fix?fix.h:dh;return h?Object.assign({},x,{s:Object.assign({},x.s,{heure:h}),moved:!!dh,fix}):x})
    .sort((a,b)=>(CRENEAUX.indexOf(a.s.creneau)-CRENEAUX.indexOf(b.s.creneau))||String(a.s.heure||'99:99').localeCompare(String(b.s.heure||'99:99'))||fullName(a.p).localeCompare(fullName(b.p)));
-  /* horaires affichés : chaque tournée démarre au début du créneau (6h00 le matin) puis avance d'un quart d'heure par patient */
+  /* horaires affichés : chaque tournée démarre au début du créneau (6h00 le matin) puis avance d'un quart d'heure par patient ;
+     un passage à heure fixée garde son heure et vient s'intercaler, les autres restent sur les quarts d'heure */
   const rk={};
-  list.forEach(x=>{const c=x.s.creneau||'Matin',k=(x.p.tournee||'')+'|'+c,r=rk[k]=(k in rk?rk[k]+1:0);
-    x.ord=x.s.heure||null;x.s=Object.assign({},x.s,{heure:fromMin(toMin(BASE[c]||'06:00')+15*r)})});
-  return list.map((x,i)=>[x,i]).sort((a,b)=>(CRENEAUX.indexOf(a[0].s.creneau)-CRENEAUX.indexOf(b[0].s.creneau))||a[0].s.heure.localeCompare(b[0].s.heure)||String(a[0].p.tournee).localeCompare(String(b[0].p.tournee))||a[1]-b[1]).map(a=>a[0])
+  list.forEach(x=>{x.ord=x.s.heure||null;if(x.fix)return;const c=x.s.creneau||'Matin',k=(x.p.tournee||'')+'|'+c,r=rk[k]=(k in rk?rk[k]+1:0);
+    x.s=Object.assign({},x.s,{heure:fromMin(toMin(BASE[c]||'06:00')+15*r)})});
+  return list.map((x,i)=>[x,i]).sort((a,b)=>(CRENEAUX.indexOf(a[0].s.creneau)-CRENEAUX.indexOf(b[0].s.creneau))||a[0].s.heure.localeCompare(b[0].s.heure)||((b[0].fix?1:0)-(a[0].fix?1:0))||String(a[0].p.tournee).localeCompare(String(b[0].p.tournee))||a[1]-b[1]).map(a=>a[0])
 }
 function alertes(){
   return Object.entries(S.soins).map(([id,s])=>({id,s,p:S.patients[s.patientId],o:ordo(s)}))
@@ -846,12 +852,35 @@ function tcClick(e){
       .concat(TC.bil.length?['BILANS ('+TC.bil.length+') :\n'+TC.bil.join('\n')]:[]).join('\n\n');
     copyText('Tournée du '+fmtLong(TC.d)+(TC.part==='soir'?' – soir':' – matin')+'\n\n'+txt,'Liste copiée : collez-la dans le message à votre collègue.')}
 }
+/* changer l'heure d'un passage à la main (6h09 au lieu des quarts d'heure) */
+function openHourPick(vid){
+  const d=S.date,x=visitesDu(d,'Toutes').find(v=>v.id===vid);if(!x)return;
+  const c=x.s.creneau||'Matin',name=fullName(x.p);
+  let o=document.getElementById('hrp');if(!o){o=document.createElement('div');o.id='hrp';document.body.appendChild(o)}
+  o.innerHTML=`<div class="overlay" style="z-index:45;align-items:center"><div class="sheet" style="border-radius:20px;max-width:420px;gap:12px" role="dialog" aria-modal="true" aria-label="Heure de passage">
+    <b style="font-size:1.05rem">${esc(name)} · ${esc(c)}</b>
+    <label class="field"><span>Heure de passage</span><input type="time" id="hr_t" step="60" value="${esc(x.s.heure||BASE[c])}"></label>
+    ${x.fix?`<div style="font-size:.85rem;color:var(--muted)">Heure fixée à la main ${x.fix.day?'pour ce jour':'pour tous les jours'}.</div>`:''}
+    <div class="formbtns" style="flex-wrap:wrap"><button class="btn" id="hr_day">Ce jour seulement</button><button class="btn ghost" id="hr_all">Tous les jours</button></div>
+    <div class="formbtns" style="flex-wrap:wrap">${x.fix?'<button class="btn ghost" id="hr_reset">Revenir aux quarts d\'heure</button>':''}<button class="btn ghost" id="hr_no">Annuler</button></div></div></div>`;
+  const close=()=>{o.innerHTML=''},get=()=>{const v=document.getElementById('hr_t').value;if(!/^\d\d:\d\d$/.test(v)){toast('Choisissez une heure.');return null}return v};
+  const soinOps=h=>x.sids.filter(id=>S.soins[id]).map(id=>{const hf=Object.assign({},S.soins[id].hfix||{});if(h)hf[c]=h;else delete hf[c];return {t:'update',path:'soins/'+id,data:{hfix:hf}}});
+  o.querySelector('.overlay').onclick=e=>{if(e.target===e.currentTarget)close()};
+  document.getElementById('hr_no').onclick=close;
+  document.getElementById('hr_day').onclick=()=>{const h=get();if(!h)return;close();
+    w([{t:'heure',date:d,id:vid,val:h+'!'}]).then(ok=>{if(ok)toast(name+' à '+h+' le '+fmtShort(d))})};
+  document.getElementById('hr_all').onclick=()=>{const h=get();if(!h)return;close();
+    w(soinOps(h).concat(x.moved?[{t:'heure',date:d,id:vid,val:null}]:[])).then(ok=>{if(ok)toast(name+' à '+h+' tous les jours ('+c.toLowerCase()+')')})};
+  const r=document.getElementById('hr_reset');if(r)r.onclick=()=>{close();
+    w(x.fix.day?[{t:'heure',date:d,id:vid,val:null}]:soinOps(null)).then(ok=>{if(ok)toast(name+' : retour aux quarts d\'heure')})};
+  setTimeout(()=>{const t=document.getElementById('hr_t');if(t)t.focus()},50);
+}
 function copyText(txt,ok){
   const fb=()=>{const ta=document.createElement('textarea');ta.value=txt;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;top:0;left:0;opacity:0';document.body.appendChild(ta);ta.select();
     let r=false;try{r=document.execCommand('copy')}catch(_){}ta.remove();toast(r?ok:'Copie impossible ici : la tournée ne peut pas être copiée.')};
   try{navigator.clipboard.writeText(txt).then(()=>toast(ok),fb)}catch(_){fb()}
 }
-function visitCard({id,sid,excSids,s,p}){
+function visitCard({id,sid,excSids,s,p,fix}){
   const vu=S.vus[id]===true, abs=S.vus[id]==='absent', soins=(s.soins||[]).filter(Boolean);
   const notes=[p.acces,p.remarques].filter(Boolean);
   const addr=[p.adresse,p.commune].filter(Boolean).join(', ');
@@ -861,7 +890,7 @@ function visitCard({id,sid,excSids,s,p}){
   return `<article class="visit ${tclass(p.tournee)} ${vu?'vu':''} ${abs?'abs':''} ${open?'open':''}" data-vid="${esc(id)}" data-h="${esc(s.heure||'')}" data-t="${esc(p.tournee||'')}" data-c="${esc(s.creneau||'Matin')}">
     <div class="line">
       ${S.canWrite?`<span class="grip" aria-label="Faire glisser pour changer l'ordre" title="Faire glisser">${ICON.grip}</span>`:''}
-      <button class="vname" data-act="expand" data-id="${id}" aria-expanded="${open}"><span class="num">${esc(s.heure||'--:--')}</span><b>${esc(fullName(p))}${estAnniv(p,S.date)?' <span class="cake" title="Anniversaire : '+ageDe(p.naissance)+' ans">🎂</span>':''}</b>${s.exceptionnel?'<span class="abstag exctag">Exc.</span>':''}${abs?'<span class="abstag">Absent</span>':''}${ICON.chev}</button>
+      <button class="vname" data-act="expand" data-id="${id}" aria-expanded="${open}"><span class="num ${fix?'fixed':''}" ${S.canWrite?`data-act="sethour" data-id="${esc(id)}" role="button" aria-label="Changer l'heure"`:''}>${esc(s.heure||'--:--')}</span><b>${esc(fullName(p))}${estAnniv(p,S.date)?' <span class="cake" title="Anniversaire : '+ageDe(p.naissance)+' ans">🎂</span>':''}</b>${s.exceptionnel?'<span class="abstag exctag">Exc.</span>':''}${abs?'<span class="abstag">Absent</span>':''}${ICON.chev}</button>
       <button class="vcheck ${vu?'is':''} ${abs?'absent':''}" data-act="vu" data-id="${id}" ${S.canWrite?'':'disabled'} aria-pressed="${vu||abs}" aria-label="${vu?'Vu, appuyer pour annuler':abs?'Absent, appuyer pour annuler':'Marquer comme vu (appui long : absent)'}">${vu?ICON.check:abs?ICON.close:''}</button>
     </div>
     ${open?`<div class="detail">
@@ -1432,6 +1461,7 @@ document.addEventListener('click',e=>{
       const done=()=>toast('Numéro copié : '+n+'. Si l\'appel ne se lance pas, collez-le dans votre téléphone.');
       try{navigator.clipboard.writeText(n).then(done,()=>toast('Numéro : '+n))}catch(_){toast('Numéro : '+n)}
       break;}
+    case 'sethour': openHourPick(el.dataset.id);break;
     case 'copytour': openTourCopy(addDays(S.date,1),null,el.dataset.part||'matin');break;
     case 'addimprevu': openModal({pid:null,mode:'exc',date:S.date,draft:{vu:true}});break;
     case 'expall': case 'expnone': (M.days||[]).forEach(x=>M.checked[x.d]=a==='expall');drawModal();break;

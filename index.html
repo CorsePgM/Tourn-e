@@ -247,8 +247,10 @@ form.f{display:flex;flex-direction:column;gap:12px}
 .soinpick::after{content:"▾";position:absolute;right:11px;top:50%;transform:translateY(-50%);color:var(--muted)}
 .soinpick.empty{color:var(--muted);font-weight:400}
 .overlay.pk{z-index:40}
-.tchead{display:flex;justify-content:space-between;align-items:baseline;font-size:.95rem;color:var(--ink,inherit)}.tchead em{font-style:normal;font-weight:800;background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:1px 10px;min-width:2.2em;text-align:center}
-#tcp textarea{font-size:.95rem;line-height:1.45}
+.tcsec{display:flex;flex-direction:column;gap:8px}.tchead{display:flex;justify-content:space-between;align-items:center;font-size:.95rem;color:var(--muted)}.tchead em{font-style:normal;font-weight:800;color:var(--ink,inherit);background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:1px 10px;min-width:2.2em;text-align:center}
+.tclist{display:flex;flex-direction:column;gap:6px}.tcname{display:block;width:100%;text-align:left;background:var(--surface,#fff);border:1px solid var(--line);border-left:5px solid var(--line);border-radius:12px;padding:10px 12px;font-weight:700;cursor:pointer}.tcname.static{cursor:default;font-weight:600}
+.tcname.plaine{border-left-color:var(--plaine)}.tcname.montagne{border-left-color:var(--montagne)}.tcitem.on .tcname{box-shadow:0 0 0 2px var(--accent)}
+.tcmenu{display:flex;gap:8px;flex-wrap:wrap;padding:8px 0 4px}.tcmenu .btn{flex:1 1 auto}.tcnone{color:var(--muted);font-size:.9rem;padding:4px 2px}
 .pksheet{max-height:88%;overflow:hidden;display:flex;flex-direction:column}
 .pksheet .pklist{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;flex:1;min-height:0;touch-action:pan-y}
 .pksheet form{overflow:auto}
@@ -341,9 +343,9 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="11/11 22:36"</script>
-<script src="runtime.js?v=11112236"></script>
-<script src="pdf.js?v=11112236"></script>
+<script>window.__BUILD="11/11 22:40"</script>
+<script src="runtime.js?v=11112240"></script>
+<script src="pdf.js?v=11112240"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -770,26 +772,41 @@ function tourParts(d){
 }
 let TC=null;
 function openTourCopy(d){
-  TC={d,parts:tourParts(d)};
-  let c=document.getElementById('tcp');if(!c){c=document.createElement('div');c.id='tcp';document.body.appendChild(c)}
-  const lines=v=>v.split('\n').map(x=>x.trim()).filter(Boolean);
-  const box=TC.parts.map(([k,L],i)=>(i<2||L.length)?`<div class="field tcsec"><span class="tchead"><b>${k.toUpperCase()}</b><em id="tcn${i}">${L.length}</em></span><textarea id="tct${i}" rows="${Math.max(3,L.length+1)}" autocapitalize="words" spellcheck="false" placeholder="Personne">${esc(L.join('\n'))}</textarea></div>`:'').join('');
-  c.innerHTML=`<div class="overlay" style="z-index:30"><div class="sheet" role="dialog" aria-modal="true" aria-label="Liste pour la collègue">
-    <div class="head"><h2>Patients à voir</h2><button class="iconbtn" id="tc_x" aria-label="Fermer">${ICON.close}</button></div>
-    <div class="datebar" style="margin:0"><button class="iconbtn" id="tc_prev" aria-label="Jour précédent">${ICON.prev}</button><div class="d"><label>${esc(fmtLong(d))}</label></div><button class="iconbtn" id="tc_next" aria-label="Jour suivant">${ICON.next}</button></div>
-    <div style="font-size:.85rem;color:var(--muted)">Vous pouvez modifier la liste : un patient par ligne. Le nombre se met à jour tout seul.</div>
-    ${box}
-    <button class="btn" id="tc_copy">${ICON.copy} Copier tout</button></div></div>`;
-  const val=i=>{const t=document.getElementById('tct'+i);return t?lines(t.value):TC.parts[i][1]};
-  TC.parts.forEach((_,i)=>{const t=document.getElementById('tct'+i);if(t)t.oninput=()=>{document.getElementById('tcn'+i).textContent=val(i).length;t.rows=Math.max(3,t.value.split('\n').length+1)}});
-  const close=()=>{c.innerHTML='';TC=null};
-  document.getElementById('tc_x').onclick=close;
-  c.querySelector('.overlay').onclick=e=>{if(e.target===e.currentTarget)close()};
-  document.getElementById('tc_prev').onclick=()=>openTourCopy(addDays(d,-1));
-  document.getElementById('tc_next').onclick=()=>openTourCopy(addDays(d,1));
-  document.getElementById('tc_copy').onclick=()=>{
-    const txt=TC.parts.map(([k],i)=>{const L=val(i);if(i>=2&&!L.length)return '';return k.toUpperCase()+' ('+L.length+') :\n'+(L.join('\n')||'Personne')}).filter(Boolean).join('\n\n');
-    copyText(txt,'Liste copiée : collez-la dans le message à votre collègue.')};
+  const P=tourParts(d);
+  TC={d,L:{Montagne:P[0][1],Plaine:P[1][1],'Sans tournée':P[2][1]},bil:P[3][1],sel:null};
+  let c=document.getElementById('tcp');if(!c){c=document.createElement('div');c.id='tcp';document.body.appendChild(c);
+    c.addEventListener('click',tcClick)}
+  drawTC();
+}
+function drawTC(){
+  const c=document.getElementById('tcp'); if(!TC){c.innerHTML='';return}
+  const keys=['Montagne','Plaine','Sans tournée'].filter(k=>k!=='Sans tournée'||TC.L[k].length);
+  const sec=k=>`<section class="tcsec"><div class="tchead"><b>${k.toUpperCase()}</b><em>${TC.L[k].length}</em></div>
+    <div class="tclist">${TC.L[k].map((n,i)=>{const on=TC.sel&&TC.sel.k===k&&TC.sel.i===i;
+      return `<div class="tcitem ${on?'on':''}"><button class="tcname ${tclass(k)}" data-tc="sel" data-k="${esc(k)}" data-i="${i}" aria-expanded="${on}">${esc(n)}</button>
+      ${on?`<div class="tcmenu">${['Montagne','Plaine'].filter(t=>t!==k).map(t=>`<button class="btn" data-tc="move" data-to="${t}">Passer en ${t}</button>`).join('')}<button class="btn ghost" data-tc="del">Retirer de la liste</button></div>`:''}</div>`}).join('')||'<div class="tcnone">Personne</div>'}</div></section>`;
+  const st=c.querySelector('.sheet'),y=st?st.scrollTop:0;
+  c.innerHTML=`<div class="overlay" style="z-index:30" data-tc="bg"><div class="sheet" role="dialog" aria-modal="true" aria-label="Liste pour la collègue">
+    <div class="head"><h2>Patients à voir</h2><button class="iconbtn" data-tc="close" aria-label="Fermer">${ICON.close}</button></div>
+    <div class="datebar" style="margin:0"><button class="iconbtn" data-tc="day" data-n="-1" aria-label="Jour précédent">${ICON.prev}</button><div class="d"><label>${esc(fmtLong(TC.d))}</label></div><button class="iconbtn" data-tc="day" data-n="1" aria-label="Jour suivant">${ICON.next}</button></div>
+    <div style="font-size:.85rem;color:var(--muted)">Touchez un patient pour le changer de tournée.</div>
+    ${keys.map(sec).join('')}
+    ${TC.bil.length?`<section class="tcsec"><div class="tchead"><b>BILANS</b><em>${TC.bil.length}</em></div><div class="tclist">${TC.bil.map(n=>`<div class="tcname static">${esc(n)}</div>`).join('')}</div></section>`:''}
+    <button class="btn" data-tc="copy">${ICON.copy} Copier tout</button></div></div>`;
+  const s2=c.querySelector('.sheet');if(s2)s2.scrollTop=y;
+}
+function tcClick(e){
+  const el=e.target.closest('[data-tc]'); if(!el||!TC) return;
+  const a=el.dataset.tc;
+  if(a==='bg'){if(e.target===el){TC=null;drawTC()}return}
+  if(a==='close'){TC=null;drawTC();return}
+  if(a==='day'){openTourCopy(addDays(TC.d,+el.dataset.n));document.querySelector('#tcp .sheet').scrollTop=0;return}
+  if(a==='sel'){const k=el.dataset.k,i=+el.dataset.i;TC.sel=(TC.sel&&TC.sel.k===k&&TC.sel.i===i)?null:{k,i};drawTC();return}
+  if(a==='move'||a==='del'){const {k,i}=TC.sel,n=TC.L[k].splice(i,1)[0];if(a==='move')TC.L[el.dataset.to].push(n);TC.sel=null;drawTC();return}
+  if(a==='copy'){
+    const txt=['Montagne','Plaine','Sans tournée'].filter(k=>k!=='Sans tournée'||TC.L[k].length).map(k=>k.toUpperCase()+' ('+TC.L[k].length+') :\n'+(TC.L[k].join('\n')||'Personne'))
+      .concat(TC.bil.length?['BILANS ('+TC.bil.length+') :\n'+TC.bil.join('\n')]:[]).join('\n\n');
+    copyText(txt,'Liste copiée : collez-la dans le message à votre collègue.')}
 }
 function copyText(txt,ok){
   const fb=()=>{const ta=document.createElement('textarea');ta.value=txt;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;top:0;left:0;opacity:0';document.body.appendChild(ta);ta.select();

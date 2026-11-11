@@ -339,9 +339,9 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="11/11 18:24"</script>
-<script src="runtime.js?v=11111824"></script>
-<script src="pdf.js?v=11111824"></script>
+<script>window.__BUILD="11/11 18:31"</script>
+<script src="runtime.js?v=11111831"></script>
+<script src="pdf.js?v=11111831"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -756,24 +756,15 @@ function vJour(){
   h+=`<div class="exportcta"><button class="btn ghost" data-act="copytour">${ICON.copy} Copier la tournée pour ma collègue</button></div>`;
   return h;
 }
-/* texte de la journée, Montagne puis Plaine, à coller dans un message */
+/* texte de la journée : noms des patients, Montagne puis Plaine, chacun une seule fois */
 function tourText(d){
-  const all=visitesDu(d,'Toutes');
-  const bil=Object.values(S.bilans).filter(b=>b.date===d);
-  const part=t=>{
-    const v=all.filter(x=>(x.p.tournee||'')===t), b=bil.filter(x=>(tourOf(x.patientId,d)||'')===t);
-    const L=[];
-    CRENEAUX.forEach(c=>{const it=v.filter(x=>(x.s.creneau||'Matin')===c);if(!it.length)return;
-      L.push(c);
-      it.forEach(x=>{const so=(x.s.soins||[]).filter(Boolean).join(' + ');
-        L.push('- '+x.s.heure+' '+fullName(x.p)+(x.p.commune?' ('+x.p.commune+')':'')+(so?' : '+so:''))})});
-    if(b.length){L.push('Bilans');b.sort((x,y)=>String(x.heure||'99').localeCompare(String(y.heure||'99'))).forEach(x=>{const p=S.patients[x.patientId]||{};
-      L.push('- '+(x.heure?x.heure+' ':'')+fullName(p)+(p.commune?' ('+p.commune+')':'')+(x.detail?' : '+x.detail:''))})}
-    return L.length?L.join('\n'):'Aucun passage';
-  };
-  let t='Tournée du '+fmtLong(d)+'\n\nMONTAGNE :\n'+part('Montagne')+'\n\nPLAINE :\n'+part('Plaine');
-  if(all.some(x=>!x.p.tournee)||bil.some(x=>!tourOf(x.patientId,d))) t+='\n\nSANS TOURNÉE :\n'+part('');
-  return t;
+  const all=visitesDu(d,'Toutes'), bil=Object.values(S.bilans).filter(x=>x.date===d);
+  const part=t=>{const seen=new Set(),L=[];
+    all.filter(x=>(x.p.tournee||'')===t).map(x=>x.s.patientId).concat(bil.filter(x=>(tourOf(x.patientId,d)||'')===t).map(x=>x.patientId))
+      .forEach(id=>{if(seen.has(id)||!S.patients[id])return;seen.add(id);L.push(fullName(S.patients[id]))});
+    return L;};
+  const m=part('Montagne'),pl=part('Plaine'),sans=part('');
+  return 'MONTAGNE :\n'+(m.join('\n')||'Personne')+'\n\nPLAINE :\n'+(pl.join('\n')||'Personne')+(sans.length?'\n\nSANS TOURNÉE :\n'+sans.join('\n'):'');
 }
 function copyText(txt,ok){
   const fb=()=>{const ta=document.createElement('textarea');ta.value=txt;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;top:0;left:0;opacity:0';document.body.appendChild(ta);ta.select();

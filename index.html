@@ -350,9 +350,9 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="11/11 23:17"</script>
-<script src="runtime.js?v=11112317"></script>
-<script src="pdf.js?v=11112317"></script>
+<script>window.__BUILD="11/11 23:19"</script>
+<script src="runtime.js?v=11112319"></script>
+<script src="pdf.js?v=11112319"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -771,23 +771,23 @@ function vJour(){
 const TCPART={matin:['Matin','Midi'],soir:['Soir']};
 function tourParts(d,pt){ /* chaque passage compte : un patient vu 3 fois apparaît 3 fois ; matin = Matin + Midi, soir = Soir */
   const cr=TCPART[pt]||CRENEAUX,all=visitesDu(d,'Toutes').filter(x=>cr.includes(x.s.creneau||'Matin'));
-  const hid=tcHid()[d]||{},it=x=>({id:x.s.patientId,vid:x.id,n:fullName(S.patients[x.s.patientId]),c:x.s.creneau||'Matin',h:x.s.heure||'',t:x.p.tournee||''});
+  const hid=tcHid(),it=x=>({id:x.s.patientId,vid:x.id,n:fullName(S.patients[x.s.patientId]),c:x.s.creneau||'Matin',h:x.s.heure||'',t:x.p.tournee||''});
   const part=t=>all.filter(x=>(x.p.tournee||'')===t&&S.patients[x.s.patientId]&&!hid[x.id]).map(it);
   const cache=all.filter(x=>hid[x.id]&&S.patients[x.s.patientId]).map(it);
   const bil=Object.values(S.bilans).filter(x=>x.date===d&&S.patients[x.patientId]&&(!pt||((x.heure||'')<'15:00')===(pt==='matin'))).sort((x,y)=>String(x.heure||'99').localeCompare(String(y.heure||'99')))
     .map(x=>{const tr=tourOf(x.patientId,d);return fullName(S.patients[x.patientId])+(x.heure?' – '+x.heure:'')+(tr?' ('+tr+')':'')});
   return [['Montagne',part('Montagne')],['Plaine',part('Plaine')],['Sans tournée',part('')],['Bilans',bil],['Caché',cache]];
 }
-/* dossier caché : passages (patient + créneau) mis de côté, gardés sur le téléphone, retirés du « Copier tout » */
-function tcHid(){try{return JSON.parse(store.get('tchid')||'{}')||{}}catch(_){return {}}}
-function tcSetHid(d,vid,on){const h=tcHid(),lim=addDays(today(),-7);Object.keys(h).forEach(k=>{if(k<lim)delete h[k]});
-  h[d]=h[d]||{};if(on)h[d][vid]=1;else delete h[d][vid];if(!Object.keys(h[d]).length)delete h[d];store.set('tchid',JSON.stringify(h))}
+/* dossier caché : passages (patient + créneau) retirés du « Copier tout » tous les jours, jusqu'à ce qu'on les en sorte.
+   Uniquement pour le planning : la tournée du jour, les cases « vu » et l'export ne changent pas. */
+function tcHid(){try{return JSON.parse(store.get('tchid2')||'{}')||{}}catch(_){return {}}}
+function tcSetHid(vid,on){const h=tcHid();if(on)h[vid]=1;else delete h[vid];store.set('tchid2',JSON.stringify(h))}
 let TC=null;
 const TCK=['Montagne','Plaine','Sans tournée'];
 function openTourCopy(d,keep,part){
   part=part||(keep&&keep.part)||'matin';
   const P=tourParts(d,part);
-  TC={d,part,L:{Montagne:P[0][1],Plaine:P[1][1],'Sans tournée':P[2][1]},bil:P[3][1],H:P[4][1],sel:null,orig:keep?keep.orig:{},hid:keep?keep.hid:{},showH:!!(keep&&keep.showH&&keep.d===d)};
+  TC={d,part,L:{Montagne:P[0][1],Plaine:P[1][1],'Sans tournée':P[2][1]},bil:P[3][1],H:P[4][1],sel:null,orig:keep?keep.orig:{},showH:!!(keep&&keep.showH&&keep.d===d)};
   let c=document.getElementById('tcp');if(!c){c=document.createElement('div');c.id='tcp';document.body.appendChild(c);
     c.addEventListener('click',tcClick)}
   drawTC();
@@ -812,8 +812,8 @@ function drawTC(){
     <button class="tchidbtn" data-tc="showhid" aria-expanded="${TC.showH}">📁 Dossier caché <em>${TC.H.length}</em><span>${TC.showH?'▲':'▼'}</span></button>
     ${TC.showH?`<div class="tclist tchidlist">${TC.H.map((x,i)=>{const on=TC.sel&&TC.sel.k==='Caché'&&TC.sel.i===i;
       return `<div class="tcitem ${on?'on':''}"><button class="tcname hid ${tclass(x.t)}" data-tc="sel" data-k="Caché" data-i="${i}" aria-expanded="${on}">${esc(x.n)}<span class="tch">${esc(x.h||'--:--')}</span><small>${esc(x.c)}${x.t?' · '+esc(x.t):''}</small></button>
-      ${on?`<div class="tcmenu"><button class="btn" data-tc="unhide">Remettre dans la liste</button></div>`:''}</div>`}).join('')||'<div class="tcnone">Le dossier caché est vide.</div>'}</div>`:''}
-    <div class="tcbtns"><button class="btn" data-tc="copy">${ICON.copy} Copier tout</button><button class="btn ghost" data-tc="undo" ${Object.keys(TC.orig).length||Object.keys(TC.hid).length?'':'disabled'}>Annuler tous les changements</button></div></div></div>`;
+      ${on?`<div class="tcmenu"><button class="btn" data-tc="unhide">Sortir du dossier caché</button></div>`:''}</div>`}).join('')||'<div class="tcnone">Le dossier caché est vide.</div>'}</div>`:''}
+    <div class="tcbtns"><button class="btn" data-tc="copy">${ICON.copy} Copier tout</button><button class="btn ghost" data-tc="undo" ${Object.keys(TC.orig).length?'':'disabled'}>Annuler tous les changements</button></div></div></div>`;
   const s2=c.querySelector('.sheet');if(s2)s2.scrollTop=y;
 }
 function tcClick(e){
@@ -824,9 +824,9 @@ function tcClick(e){
   if(a==='day'){openTourCopy(addDays(TC.d,+el.dataset.n),TC);document.querySelector('#tcp .sheet').scrollTop=0;return}
   if(a==='sel'){const k=el.dataset.k,i=+el.dataset.i;TC.sel=(TC.sel&&TC.sel.k===k&&TC.sel.i===i)?null:{k,i};drawTC();return}
   if(a==='showhid'){TC.showH=!TC.showH;TC.sel=null;drawTC();if(TC.showH){const st=document.querySelector('#tcp .sheet');st.scrollTop=st.scrollHeight}return}
-  if(a==='hide'||a==='unhide'){const {k,i}=TC.sel,x=(k==='Caché'?TC.H:TC.L[k])[i],key=TC.d+'|'+x.vid;
-    tcSetHid(TC.d,x.vid,a==='hide');if(key in TC.hid)delete TC.hid[key];else TC.hid[key]=a==='hide';
-    toast(x.n+' ('+x.c+') '+(a==='hide'?'mis dans le dossier caché':'remis dans la liste'));openTourCopy(TC.d,TC);return}
+  if(a==='hide'||a==='unhide'){const {k,i}=TC.sel,x=(k==='Caché'?TC.H:TC.L[k])[i];
+    tcSetHid(x.vid,a==='hide');
+    toast(x.n+' ('+x.c+') '+(a==='hide'?'mis dans le dossier caché pour tous les jours':'sorti du dossier caché'));openTourCopy(TC.d,TC);return}
   if(a==='move'){ /* la bascule vaut pour tous les passages du patient ce jour-là, et pour la tournée du jour (export, vue du jour) */
     const {k,i}=TC.sel,x=TC.L[k][i],to=el.dataset.to,def=(S.patients[x.id]||{}).tournee,d=TC.d,key=d+'|'+x.id;
     if(!(key in TC.orig)) TC.orig[key]=((S.dayT||{})[d]||{})[x.id]||null;
@@ -836,7 +836,7 @@ function tcClick(e){
     return}
   if(a==='undo'){ /* remet chaque patient basculé dans sa tournée d'avant */
     const ops=Object.entries(TC.orig).map(([key,v])=>{const [d,id]=key.split('|');return {t:'tournee',date:d,id,val:v}});
-    const d=TC.d;TC.orig={};Object.entries(TC.hid).forEach(([key,on])=>{const [dd,vid]=key.split('|');tcSetHid(dd,vid,!on)});TC.hid={};
+    const d=TC.d;TC.orig={};
     const pt=TC.part,done=()=>{openTourCopy(d,null,pt);render();toast('Tous les changements sont annulés.')};
     if(ops.length) w(ops).then(done); else done();
     return}

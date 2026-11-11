@@ -250,7 +250,8 @@ form.f{display:flex;flex-direction:column;gap:12px}
 .tcsec{display:flex;flex-direction:column;gap:8px}.tchead{display:flex;justify-content:space-between;align-items:center;font-size:.95rem;color:var(--muted)}.tchead em{font-style:normal;font-weight:800;color:var(--ink,inherit);background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:1px 10px;min-width:2.2em;text-align:center}
 .tclist{display:flex;flex-direction:column;gap:6px}.tcname{display:block;width:100%;text-align:left;background:var(--surface,#fff);border:1px solid var(--line);border-left:5px solid var(--line);border-radius:12px;padding:10px 12px;font-weight:700;cursor:pointer}.tcname.static{cursor:default;font-weight:600}
 .tcname.plaine{border-left-color:var(--plaine)}.tcname.montagne{border-left-color:var(--montagne)}.tcitem.on .tcname{box-shadow:0 0 0 2px var(--accent)}
-.tcmenu{display:flex;gap:8px;flex-wrap:wrap;padding:8px 0 4px}.tcmenu .btn{flex:1 1 auto}.tcnone{color:var(--muted);font-size:.9rem;padding:4px 2px}
+.tcmenu{display:flex;gap:8px;flex-wrap:wrap;padding:8px 0 4px}.tcmenu .btn{flex:1 1 auto}.tcbtns{display:flex;gap:8px;position:sticky;bottom:calc(-20px - env(safe-area-inset-bottom,0px));background:var(--bg);padding:8px 0 calc(20px + env(safe-area-inset-bottom,0px));margin-bottom:calc(-20px - env(safe-area-inset-bottom,0px))}.tcbtns .btn{flex:1 1 0;padding:9px 10px;font-size:.88rem;min-height:0;line-height:1.2}.tcbtns .btn[disabled]{opacity:.45}
+.tcnone{color:var(--muted);font-size:.9rem;padding:4px 2px}
 .pksheet{max-height:88%;overflow:hidden;display:flex;flex-direction:column}
 .pksheet .pklist{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;flex:1;min-height:0;touch-action:pan-y}
 .pksheet form{overflow:auto}
@@ -343,9 +344,9 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="11/11 22:42"</script>
-<script src="runtime.js?v=11112242"></script>
-<script src="pdf.js?v=11112242"></script>
+<script>window.__BUILD="11/11 22:45"</script>
+<script src="runtime.js?v=11112245"></script>
+<script src="pdf.js?v=11112245"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -757,7 +758,7 @@ function vJour(){
    h+=`<section class="card rempl"><label class="checkrow"><input type="checkbox" id="f_remplon" ${r.on?'checked':''} ${S.canWrite?'':'disabled'}><span class="t"><b>Journée faite par une remplaçante</b></span></label>
      ${r.on?`<label class="field"><span>Prénom de la remplaçante</span><input type="text" id="f_remplnom" value="${esc(r.prenom||'')}" placeholder="Ex. Julie" autocomplete="off" autocapitalize="words" ${S.canWrite?'':'disabled'}></label>`:''}</section>`;}
   h+=exportCta();
-  h+=`<div class="exportcta"><button class="btn ghost" data-act="copytour">${ICON.copy} Liste de demain pour ma collègue</button></div>`;
+  h+=`<div class="exportcta"><button class="btn ghost" data-act="copytour">${ICON.copy} Planning tournée</button></div>`;
   return h;
 }
 /* liste pour la collègue : noms des patients, Montagne puis Plaine, chacun une seule fois ; les bilans à la fin */
@@ -772,8 +773,8 @@ function tourParts(d){
 }
 let TC=null;
 function openTourCopy(d,keep){
-  const P=tourParts(d),rm=keep?keep.rm:new Set(),f=L=>L.filter(x=>!rm.has(x.id));
-  TC={d,L:{Montagne:f(P[0][1]),Plaine:f(P[1][1]),'Sans tournée':f(P[2][1])},bil:P[3][1],sel:null,rm};
+  const rm=keep&&keep.d===d?keep.rm:new Set(),P=tourParts(d),f=L=>L.filter(x=>!rm.has(x.id));
+  TC={d,L:{Montagne:f(P[0][1]),Plaine:f(P[1][1]),'Sans tournée':f(P[2][1])},bil:P[3][1],sel:null,rm,orig:keep?keep.orig:{}};
   let c=document.getElementById('tcp');if(!c){c=document.createElement('div');c.id='tcp';document.body.appendChild(c);
     c.addEventListener('click',tcClick)}
   drawTC();
@@ -787,12 +788,12 @@ function drawTC(){
       ${on?`<div class="tcmenu">${['Montagne','Plaine'].filter(t=>t!==k).map(t=>`<button class="btn" data-tc="move" data-to="${t}">Passer en ${t}</button>`).join('')}<button class="btn ghost" data-tc="del">Retirer de la liste</button></div>`:''}</div>`}).join('')||'<div class="tcnone">Personne</div>'}</div></section>`;
   const st=c.querySelector('.sheet'),y=st?st.scrollTop:0;
   c.innerHTML=`<div class="overlay" style="z-index:30" data-tc="bg"><div class="sheet" role="dialog" aria-modal="true" aria-label="Liste pour la collègue">
-    <div class="head"><h2>Patients à voir</h2><button class="iconbtn" data-tc="close" aria-label="Fermer">${ICON.close}</button></div>
+    <div class="head"><h2>Planning tournée</h2><button class="iconbtn" data-tc="close" aria-label="Fermer">${ICON.close}</button></div>
     <div class="datebar" style="margin:0"><button class="iconbtn" data-tc="day" data-n="-1" aria-label="Jour précédent">${ICON.prev}</button><div class="d"><label>${esc(fmtLong(TC.d))}</label></div><button class="iconbtn" data-tc="day" data-n="1" aria-label="Jour suivant">${ICON.next}</button></div>
     <div style="font-size:.85rem;color:var(--muted)">Touchez un patient pour le changer de tournée.</div>
     ${keys.map(sec).join('')}
     ${TC.bil.length?`<section class="tcsec"><div class="tchead"><b>BILANS</b><em>${TC.bil.length}</em></div><div class="tclist">${TC.bil.map(n=>`<div class="tcname static">${esc(n)}</div>`).join('')}</div></section>`:''}
-    <button class="btn" data-tc="copy">${ICON.copy} Copier tout</button></div></div>`;
+    <div class="tcbtns"><button class="btn" data-tc="copy">${ICON.copy} Copier tout</button><button class="btn ghost" data-tc="undo" ${Object.keys(TC.orig).length||TC.rm.size?'':'disabled'}>Annuler tous les changements</button></div></div></div>`;
   const s2=c.querySelector('.sheet');if(s2)s2.scrollTop=y;
 }
 function tcClick(e){
@@ -800,13 +801,20 @@ function tcClick(e){
   const a=el.dataset.tc;
   if(a==='bg'){if(e.target===el){TC=null;drawTC()}return}
   if(a==='close'){TC=null;drawTC();return}
-  if(a==='day'){openTourCopy(addDays(TC.d,+el.dataset.n));document.querySelector('#tcp .sheet').scrollTop=0;return}
+  if(a==='day'){openTourCopy(addDays(TC.d,+el.dataset.n),TC);document.querySelector('#tcp .sheet').scrollTop=0;return}
   if(a==='sel'){const k=el.dataset.k,i=+el.dataset.i;TC.sel=(TC.sel&&TC.sel.k===k&&TC.sel.i===i)?null:{k,i};drawTC();return}
   if(a==='del'){const {k,i}=TC.sel;TC.rm.add(TC.L[k][i].id);TC.L[k].splice(i,1);TC.sel=null;drawTC();return}
   if(a==='move'){ /* la bascule vaut aussi pour la tournée de ce jour-là (export, vue du jour) */
-    const {k,i}=TC.sel,x=TC.L[k][i],to=el.dataset.to,def=(S.patients[x.id]||{}).tournee,d=TC.d;
+    const {k,i}=TC.sel,x=TC.L[k][i],to=el.dataset.to,def=(S.patients[x.id]||{}).tournee,d=TC.d,key=d+'|'+x.id;
+    if(!(key in TC.orig)) TC.orig[key]=((S.dayT||{})[d]||{})[x.id]||null;
     TC.L[k].splice(i,1);TC.L[to].push(x);TC.sel=null;drawTC();
     w([{t:'tournee',date:d,id:x.id,val:to===def?null:to}]).then(ok=>{if(ok)toast(x.n+' : '+to+' le '+fmtShort(d)+(to===def?' (tournée habituelle)':' seulement'));render()});
+    return}
+  if(a==='undo'){ /* remet chaque patient basculé dans sa tournée d'avant, et réaffiche les patients retirés */
+    const ops=Object.entries(TC.orig).map(([key,v])=>{const [d,id]=key.split('|');return {t:'tournee',date:d,id,val:v}});
+    const d=TC.d;TC.orig={};TC.rm=new Set();
+    const done=()=>{openTourCopy(d);render();toast('Tous les changements sont annulés.')};
+    if(ops.length) w(ops).then(done); else done();
     return}
   if(a==='copy'){
     const txt=['Montagne','Plaine','Sans tournée'].filter(k=>k!=='Sans tournée'||TC.L[k].length).map(k=>k.toUpperCase()+' ('+TC.L[k].length+') :\n'+(TC.L[k].map(x=>x.n).join('\n')||'Personne'))

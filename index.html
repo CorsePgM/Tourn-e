@@ -351,9 +351,9 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="11/11 23:47"</script>
-<script src="runtime.js?v=11112347"></script>
-<script src="pdf.js?v=11112347"></script>
+<script>window.__BUILD="11/11 23:49"</script>
+<script src="runtime.js?v=11112349"></script>
+<script src="pdf.js?v=11112349"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -847,7 +847,9 @@ function tcClick(e){
     if(ops.length) w(ops).then(done); else done();
     return}
   if(a==='copy'){
-    const block=L=>L.map(x=>x.n+(x.h?' – '+x.h:'')).join('\n');
+    /* l'heure n'est utile que si le patient a plusieurs passages dans ce planning */
+    const nb={};TCK.forEach(k=>TC.L[k].forEach(x=>nb[x.id]=(nb[x.id]||0)+1));
+    const block=L=>L.map(x=>x.n+(x.h&&nb[x.id]>1?' – '+x.h:'')).join('\n');
     const txt=TCK.filter(k=>k!=='Sans tournée'||TC.L[k].length).map(k=>{const n=TC.L[k].length;return k.toUpperCase()+' ('+n+' passage'+(n>1?'s':'')+') :\n'+(block(TC.L[k])||'Personne')})
       .concat(TC.bil.length?['BILANS ('+TC.bil.length+') :\n'+TC.bil.join('\n')]:[]).join('\n\n');
     copyText('Tournée du '+fmtLong(TC.d)+(TC.part==='soir'?' – soir':' – matin')+'\n\n'+txt,'Liste copiée : collez-la dans le message à votre collègue.')}

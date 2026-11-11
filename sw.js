@@ -1,5 +1,5 @@
 /* Service worker : l'appli s'ouvre même sans réseau. */
-const VERSION = 'tournee-1794437258';
+const VERSION = 'tournee-1794437347';
 const SHELL = ['./', './index.html', './manifest.webmanifest',
   './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png', './runtime.js', './pdf.js'];
 const CDN = ['cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];

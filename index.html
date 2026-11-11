@@ -247,6 +247,8 @@ form.f{display:flex;flex-direction:column;gap:12px}
 .soinpick::after{content:"▾";position:absolute;right:11px;top:50%;transform:translateY(-50%);color:var(--muted)}
 .soinpick.empty{color:var(--muted);font-weight:400}
 .overlay.pk{z-index:40}
+.tchead{display:flex;justify-content:space-between;align-items:baseline;font-size:.95rem;color:var(--ink,inherit)}.tchead em{font-style:normal;font-weight:800;background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:1px 10px;min-width:2.2em;text-align:center}
+#tcp textarea{font-size:.95rem;line-height:1.45}
 .pksheet{max-height:88%;overflow:hidden;display:flex;flex-direction:column}
 .pksheet .pklist{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;flex:1;min-height:0;touch-action:pan-y}
 .pksheet form{overflow:auto}
@@ -339,9 +341,9 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="11/11 20:13"</script>
-<script src="runtime.js?v=11112013"></script>
-<script src="pdf.js?v=11112013"></script>
+<script>window.__BUILD="11/11 22:36"</script>
+<script src="runtime.js?v=11112236"></script>
+<script src="pdf.js?v=11112236"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -753,21 +755,41 @@ function vJour(){
    h+=`<section class="card rempl"><label class="checkrow"><input type="checkbox" id="f_remplon" ${r.on?'checked':''} ${S.canWrite?'':'disabled'}><span class="t"><b>Journée faite par une remplaçante</b></span></label>
      ${r.on?`<label class="field"><span>Prénom de la remplaçante</span><input type="text" id="f_remplnom" value="${esc(r.prenom||'')}" placeholder="Ex. Julie" autocomplete="off" autocapitalize="words" ${S.canWrite?'':'disabled'}></label>`:''}</section>`;}
   h+=exportCta();
-  h+=`<div class="exportcta"><button class="btn ghost" data-act="copytour">${ICON.copy} Copier la tournée pour ma collègue</button></div>`;
+  h+=`<div class="exportcta"><button class="btn ghost" data-act="copytour">${ICON.copy} Liste de demain pour ma collègue</button></div>`;
   return h;
 }
-/* texte de la journée : noms des patients, Montagne puis Plaine, chacun une seule fois ; les bilans à la fin */
-function tourText(d){
+/* liste pour la collègue : noms des patients, Montagne puis Plaine, chacun une seule fois ; les bilans à la fin */
+function tourParts(d){
   const all=visitesDu(d,'Toutes');
-  const bil=Object.values(S.bilans).filter(x=>x.date===d&&S.patients[x.patientId]).sort((x,y)=>String(x.heure||'99').localeCompare(String(y.heure||'99')));
   const part=t=>{const seen=new Set(),L=[];
     all.filter(x=>(x.p.tournee||'')===t).forEach(x=>{const id=x.s.patientId;if(seen.has(id)||!S.patients[id])return;seen.add(id);L.push(fullName(S.patients[id]))});
     return L;};
-  const m=part('Montagne'),pl=part('Plaine'),sans=part('');
-  let t='MONTAGNE :\n'+(m.join('\n')||'Personne')+'\n\nPLAINE :\n'+(pl.join('\n')||'Personne');
-  if(sans.length) t+='\n\nSANS TOURNÉE :\n'+sans.join('\n');
-  if(bil.length) t+='\n\nBILANS :\n'+bil.map(x=>{const tr=tourOf(x.patientId,d);return fullName(S.patients[x.patientId])+(tr?' ('+tr+')':'')}).join('\n');
-  return t;
+  const bil=Object.values(S.bilans).filter(x=>x.date===d&&S.patients[x.patientId]).sort((x,y)=>String(x.heure||'99').localeCompare(String(y.heure||'99')))
+    .map(x=>{const tr=tourOf(x.patientId,d);return fullName(S.patients[x.patientId])+(tr?' ('+tr+')':'')});
+  return [['Montagne',part('Montagne')],['Plaine',part('Plaine')],['Sans tournée',part('')],['Bilans',bil]];
+}
+let TC=null;
+function openTourCopy(d){
+  TC={d,parts:tourParts(d)};
+  let c=document.getElementById('tcp');if(!c){c=document.createElement('div');c.id='tcp';document.body.appendChild(c)}
+  const lines=v=>v.split('\n').map(x=>x.trim()).filter(Boolean);
+  const box=TC.parts.map(([k,L],i)=>(i<2||L.length)?`<div class="field tcsec"><span class="tchead"><b>${k.toUpperCase()}</b><em id="tcn${i}">${L.length}</em></span><textarea id="tct${i}" rows="${Math.max(3,L.length+1)}" autocapitalize="words" spellcheck="false" placeholder="Personne">${esc(L.join('\n'))}</textarea></div>`:'').join('');
+  c.innerHTML=`<div class="overlay" style="z-index:30"><div class="sheet" role="dialog" aria-modal="true" aria-label="Liste pour la collègue">
+    <div class="head"><h2>Patients à voir</h2><button class="iconbtn" id="tc_x" aria-label="Fermer">${ICON.close}</button></div>
+    <div class="datebar" style="margin:0"><button class="iconbtn" id="tc_prev" aria-label="Jour précédent">${ICON.prev}</button><div class="d"><label>${esc(fmtLong(d))}</label></div><button class="iconbtn" id="tc_next" aria-label="Jour suivant">${ICON.next}</button></div>
+    <div style="font-size:.85rem;color:var(--muted)">Vous pouvez modifier la liste : un patient par ligne. Le nombre se met à jour tout seul.</div>
+    ${box}
+    <button class="btn" id="tc_copy">${ICON.copy} Copier tout</button></div></div>`;
+  const val=i=>{const t=document.getElementById('tct'+i);return t?lines(t.value):TC.parts[i][1]};
+  TC.parts.forEach((_,i)=>{const t=document.getElementById('tct'+i);if(t)t.oninput=()=>{document.getElementById('tcn'+i).textContent=val(i).length;t.rows=Math.max(3,t.value.split('\n').length+1)}});
+  const close=()=>{c.innerHTML='';TC=null};
+  document.getElementById('tc_x').onclick=close;
+  c.querySelector('.overlay').onclick=e=>{if(e.target===e.currentTarget)close()};
+  document.getElementById('tc_prev').onclick=()=>openTourCopy(addDays(d,-1));
+  document.getElementById('tc_next').onclick=()=>openTourCopy(addDays(d,1));
+  document.getElementById('tc_copy').onclick=()=>{
+    const txt=TC.parts.map(([k],i)=>{const L=val(i);if(i>=2&&!L.length)return '';return k.toUpperCase()+' ('+L.length+') :\n'+(L.join('\n')||'Personne')}).filter(Boolean).join('\n\n');
+    copyText(txt,'Liste copiée : collez-la dans le message à votre collègue.')};
 }
 function copyText(txt,ok){
   const fb=()=>{const ta=document.createElement('textarea');ta.value=txt;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;top:0;left:0;opacity:0';document.body.appendChild(ta);ta.select();
@@ -1355,7 +1377,7 @@ document.addEventListener('click',e=>{
       const done=()=>toast('Numéro copié : '+n+'. Si l\'appel ne se lance pas, collez-le dans votre téléphone.');
       try{navigator.clipboard.writeText(n).then(done,()=>toast('Numéro : '+n))}catch(_){toast('Numéro : '+n)}
       break;}
-    case 'copytour': copyText(tourText(S.date),'Tournée copiée : collez-la dans le message à votre collègue.');break;
+    case 'copytour': openTourCopy(addDays(S.date,1));break;
     case 'addimprevu': openModal({pid:null,mode:'exc',date:S.date,draft:{vu:true}});break;
     case 'expall': case 'expnone': (M.days||[]).forEach(x=>M.checked[x.d]=a==='expall');drawModal();break;
     case 'expsend': sendExport();break;

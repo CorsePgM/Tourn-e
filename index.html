@@ -343,9 +343,9 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="11/11 22:40"</script>
-<script src="runtime.js?v=11112240"></script>
-<script src="pdf.js?v=11112240"></script>
+<script>window.__BUILD="11/11 22:42"</script>
+<script src="runtime.js?v=11112242"></script>
+<script src="pdf.js?v=11112242"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -764,16 +764,16 @@ function vJour(){
 function tourParts(d){
   const all=visitesDu(d,'Toutes');
   const part=t=>{const seen=new Set(),L=[];
-    all.filter(x=>(x.p.tournee||'')===t).forEach(x=>{const id=x.s.patientId;if(seen.has(id)||!S.patients[id])return;seen.add(id);L.push(fullName(S.patients[id]))});
+    all.filter(x=>(x.p.tournee||'')===t).forEach(x=>{const id=x.s.patientId;if(seen.has(id)||!S.patients[id])return;seen.add(id);L.push({id,n:fullName(S.patients[id])})});
     return L;};
   const bil=Object.values(S.bilans).filter(x=>x.date===d&&S.patients[x.patientId]).sort((x,y)=>String(x.heure||'99').localeCompare(String(y.heure||'99')))
     .map(x=>{const tr=tourOf(x.patientId,d);return fullName(S.patients[x.patientId])+(tr?' ('+tr+')':'')});
   return [['Montagne',part('Montagne')],['Plaine',part('Plaine')],['Sans tournée',part('')],['Bilans',bil]];
 }
 let TC=null;
-function openTourCopy(d){
-  const P=tourParts(d);
-  TC={d,L:{Montagne:P[0][1],Plaine:P[1][1],'Sans tournée':P[2][1]},bil:P[3][1],sel:null};
+function openTourCopy(d,keep){
+  const P=tourParts(d),rm=keep?keep.rm:new Set(),f=L=>L.filter(x=>!rm.has(x.id));
+  TC={d,L:{Montagne:f(P[0][1]),Plaine:f(P[1][1]),'Sans tournée':f(P[2][1])},bil:P[3][1],sel:null,rm};
   let c=document.getElementById('tcp');if(!c){c=document.createElement('div');c.id='tcp';document.body.appendChild(c);
     c.addEventListener('click',tcClick)}
   drawTC();
@@ -782,7 +782,7 @@ function drawTC(){
   const c=document.getElementById('tcp'); if(!TC){c.innerHTML='';return}
   const keys=['Montagne','Plaine','Sans tournée'].filter(k=>k!=='Sans tournée'||TC.L[k].length);
   const sec=k=>`<section class="tcsec"><div class="tchead"><b>${k.toUpperCase()}</b><em>${TC.L[k].length}</em></div>
-    <div class="tclist">${TC.L[k].map((n,i)=>{const on=TC.sel&&TC.sel.k===k&&TC.sel.i===i;
+    <div class="tclist">${TC.L[k].map(({n},i)=>{const on=TC.sel&&TC.sel.k===k&&TC.sel.i===i;
       return `<div class="tcitem ${on?'on':''}"><button class="tcname ${tclass(k)}" data-tc="sel" data-k="${esc(k)}" data-i="${i}" aria-expanded="${on}">${esc(n)}</button>
       ${on?`<div class="tcmenu">${['Montagne','Plaine'].filter(t=>t!==k).map(t=>`<button class="btn" data-tc="move" data-to="${t}">Passer en ${t}</button>`).join('')}<button class="btn ghost" data-tc="del">Retirer de la liste</button></div>`:''}</div>`}).join('')||'<div class="tcnone">Personne</div>'}</div></section>`;
   const st=c.querySelector('.sheet'),y=st?st.scrollTop:0;
@@ -802,9 +802,14 @@ function tcClick(e){
   if(a==='close'){TC=null;drawTC();return}
   if(a==='day'){openTourCopy(addDays(TC.d,+el.dataset.n));document.querySelector('#tcp .sheet').scrollTop=0;return}
   if(a==='sel'){const k=el.dataset.k,i=+el.dataset.i;TC.sel=(TC.sel&&TC.sel.k===k&&TC.sel.i===i)?null:{k,i};drawTC();return}
-  if(a==='move'||a==='del'){const {k,i}=TC.sel,n=TC.L[k].splice(i,1)[0];if(a==='move')TC.L[el.dataset.to].push(n);TC.sel=null;drawTC();return}
+  if(a==='del'){const {k,i}=TC.sel;TC.rm.add(TC.L[k][i].id);TC.L[k].splice(i,1);TC.sel=null;drawTC();return}
+  if(a==='move'){ /* la bascule vaut aussi pour la tournée de ce jour-là (export, vue du jour) */
+    const {k,i}=TC.sel,x=TC.L[k][i],to=el.dataset.to,def=(S.patients[x.id]||{}).tournee,d=TC.d;
+    TC.L[k].splice(i,1);TC.L[to].push(x);TC.sel=null;drawTC();
+    w([{t:'tournee',date:d,id:x.id,val:to===def?null:to}]).then(ok=>{if(ok)toast(x.n+' : '+to+' le '+fmtShort(d)+(to===def?' (tournée habituelle)':' seulement'));render()});
+    return}
   if(a==='copy'){
-    const txt=['Montagne','Plaine','Sans tournée'].filter(k=>k!=='Sans tournée'||TC.L[k].length).map(k=>k.toUpperCase()+' ('+TC.L[k].length+') :\n'+(TC.L[k].join('\n')||'Personne'))
+    const txt=['Montagne','Plaine','Sans tournée'].filter(k=>k!=='Sans tournée'||TC.L[k].length).map(k=>k.toUpperCase()+' ('+TC.L[k].length+') :\n'+(TC.L[k].map(x=>x.n).join('\n')||'Personne'))
       .concat(TC.bil.length?['BILANS ('+TC.bil.length+') :\n'+TC.bil.join('\n')]:[]).join('\n\n');
     copyText(txt,'Liste copiée : collez-la dans le message à votre collègue.')}
 }

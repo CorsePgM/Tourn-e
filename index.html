@@ -250,7 +250,8 @@ form.f{display:flex;flex-direction:column;gap:12px}
 .tcsec{display:flex;flex-direction:column;gap:8px}.tchead{display:flex;justify-content:space-between;align-items:center;font-size:.95rem;color:var(--muted)}.tchead em{font-style:normal;font-weight:800;color:var(--ink,inherit);background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:1px 10px;min-width:2.2em;text-align:center}
 .tclist{display:flex;flex-direction:column;gap:6px}.tcname{display:block;width:100%;text-align:left;background:var(--surface,#fff);border:1px solid var(--line);border-left:5px solid var(--line);border-radius:12px;padding:10px 12px;font-weight:700;cursor:pointer}.tcname.static{cursor:default;font-weight:600}
 .tcname.plaine{border-left-color:var(--plaine)}.tcname.montagne{border-left-color:var(--montagne)}.tcitem.on .tcname{box-shadow:0 0 0 2px var(--accent)}
-.tcmenu{display:flex;gap:8px;flex-wrap:wrap;padding:8px 0 4px}.tcmenu .btn{flex:1 1 auto}.tcbtns{display:flex;gap:8px;position:sticky;bottom:calc(-20px - env(safe-area-inset-bottom,0px));background:var(--bg);padding:8px 0 calc(20px + env(safe-area-inset-bottom,0px));margin-bottom:calc(-20px - env(safe-area-inset-bottom,0px))}.tcbtns .btn{flex:1 1 0;padding:9px 10px;font-size:.88rem;min-height:0;line-height:1.2}.tcbtns .btn[disabled]{opacity:.45}
+.tcmenu{display:flex;gap:8px;flex-wrap:wrap;padding:8px 0 4px}.tcmenu .btn{flex:1 1 auto}.tcname.moved{background:var(--accent-soft);border-color:var(--accent)}.tcname.moved.plaine{border-left-color:var(--plaine)}.tcname.moved.montagne{border-left-color:var(--montagne)}.tcname small{display:block;font-weight:600;font-size:.78rem;color:var(--accent)}
+.tcbtns{display:flex;gap:8px;position:sticky;bottom:calc(-20px - env(safe-area-inset-bottom,0px));background:var(--bg);padding:8px 0 calc(20px + env(safe-area-inset-bottom,0px));margin-bottom:calc(-20px - env(safe-area-inset-bottom,0px))}.tcbtns .btn{flex:1 1 0;padding:9px 10px;font-size:.88rem;min-height:0;line-height:1.2}.tcbtns .btn[disabled]{opacity:.45}
 .tcnone{color:var(--muted);font-size:.9rem;padding:4px 2px}
 .pksheet{max-height:88%;overflow:hidden;display:flex;flex-direction:column}
 .pksheet .pklist{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;flex:1;min-height:0;touch-action:pan-y}
@@ -344,9 +345,9 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="11/11 22:45"</script>
-<script src="runtime.js?v=11112245"></script>
-<script src="pdf.js?v=11112245"></script>
+<script>window.__BUILD="11/11 22:47"</script>
+<script src="runtime.js?v=11112247"></script>
+<script src="pdf.js?v=11112247"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -783,8 +784,8 @@ function drawTC(){
   const c=document.getElementById('tcp'); if(!TC){c.innerHTML='';return}
   const keys=['Montagne','Plaine','Sans tournée'].filter(k=>k!=='Sans tournée'||TC.L[k].length);
   const sec=k=>`<section class="tcsec"><div class="tchead"><b>${k.toUpperCase()}</b><em>${TC.L[k].length}</em></div>
-    <div class="tclist">${TC.L[k].map(({n},i)=>{const on=TC.sel&&TC.sel.k===k&&TC.sel.i===i;
-      return `<div class="tcitem ${on?'on':''}"><button class="tcname ${tclass(k)}" data-tc="sel" data-k="${esc(k)}" data-i="${i}" aria-expanded="${on}">${esc(n)}</button>
+    <div class="tclist">${TC.L[k].map(({id,n},i)=>{const on=TC.sel&&TC.sel.k===k&&TC.sel.i===i,def=(S.patients[id]||{}).tournee||'',mv=k!=='Sans tournée'&&def!==k;
+      return `<div class="tcitem ${on?'on':''}"><button class="tcname ${tclass(k)} ${mv?'moved':''}" data-tc="sel" data-k="${esc(k)}" data-i="${i}" aria-expanded="${on}">${esc(n)}${mv?`<small>basculé${def?' · d\'habitude en '+esc(def):''}</small>`:''}</button>
       ${on?`<div class="tcmenu">${['Montagne','Plaine'].filter(t=>t!==k).map(t=>`<button class="btn" data-tc="move" data-to="${t}">Passer en ${t}</button>`).join('')}<button class="btn ghost" data-tc="del">Retirer de la liste</button></div>`:''}</div>`}).join('')||'<div class="tcnone">Personne</div>'}</div></section>`;
   const st=c.querySelector('.sheet'),y=st?st.scrollTop:0;
   c.innerHTML=`<div class="overlay" style="z-index:30" data-tc="bg"><div class="sheet" role="dialog" aria-modal="true" aria-label="Liste pour la collègue">

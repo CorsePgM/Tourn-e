@@ -252,6 +252,8 @@ form.f{display:flex;flex-direction:column;gap:12px}
 .tcname.plaine{border-left-color:var(--plaine)}.tcname.montagne{border-left-color:var(--montagne)}.tcitem.on .tcname{box-shadow:0 0 0 2px var(--accent)}
 .tcmenu{display:flex;gap:8px;flex-wrap:wrap;padding:8px 0 4px}.tcmenu .btn{flex:1 1 auto}.tcname.moved{background:var(--accent-soft);border-color:var(--accent)}.tcname.moved.plaine{border-left-color:var(--plaine)}.tcname.moved.montagne{border-left-color:var(--montagne)}.tcname small{display:block;font-weight:600;font-size:.78rem;color:var(--accent)}
 .tcsub{font-size:.78rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:6px 2px 0}
+.tch{display:inline-block;min-width:3.2em;font-variant-numeric:tabular-nums;color:var(--muted);font-weight:700;margin-right:6px}
+.tcbtnrow{gap:8px;flex-wrap:wrap}.tcbtnrow .btn{flex:1 1 140px}
 .tcbtns{display:flex;gap:8px;position:sticky;bottom:calc(-20px - env(safe-area-inset-bottom,0px));background:var(--bg);padding:8px 0 calc(20px + env(safe-area-inset-bottom,0px));margin-bottom:calc(-20px - env(safe-area-inset-bottom,0px))}.tcbtns .btn{flex:1 1 0;padding:9px 10px;font-size:.88rem;min-height:0;line-height:1.2}.tcbtns .btn[disabled]{opacity:.45}
 .tcnone{color:var(--muted);font-size:.9rem;padding:4px 2px}
 .pksheet{max-height:88%;overflow:hidden;display:flex;flex-direction:column}
@@ -346,9 +348,9 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="11/11 23:04"</script>
-<script src="runtime.js?v=11112304"></script>
-<script src="pdf.js?v=11112304"></script>
+<script>window.__BUILD="11/11 23:07"</script>
+<script src="runtime.js?v=11112307"></script>
+<script src="pdf.js?v=11112307"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -760,22 +762,24 @@ function vJour(){
    h+=`<section class="card rempl"><label class="checkrow"><input type="checkbox" id="f_remplon" ${r.on?'checked':''} ${S.canWrite?'':'disabled'}><span class="t"><b>Journée faite par une remplaçante</b></span></label>
      ${r.on?`<label class="field"><span>Prénom de la remplaçante</span><input type="text" id="f_remplnom" value="${esc(r.prenom||'')}" placeholder="Ex. Julie" autocomplete="off" autocapitalize="words" ${S.canWrite?'':'disabled'}></label>`:''}</section>`;}
   h+=exportCta();
-  h+=`<div class="exportcta"><button class="btn ghost" data-act="copytour">${ICON.copy} Planning tournée</button></div>`;
+  h+=`<div class="exportcta tcbtnrow"><button class="btn ghost" data-act="copytour" data-part="matin">${ICON.copy} Planning tournée matin</button><button class="btn ghost" data-act="copytour" data-part="soir">${ICON.copy} Planning tournée soir</button></div>`;
   return h;
 }
 /* liste pour la collègue : noms des patients, Montagne puis Plaine, chacun une seule fois ; les bilans à la fin */
-function tourParts(d){ /* chaque passage compte : un patient vu 3 fois apparaît 3 fois */
-  const all=visitesDu(d,'Toutes');
+const TCPART={matin:['Matin','Midi'],soir:['Soir']};
+function tourParts(d,pt){ /* chaque passage compte : un patient vu 3 fois apparaît 3 fois ; matin = Matin + Midi, soir = Soir */
+  const cr=TCPART[pt]||CRENEAUX,all=visitesDu(d,'Toutes').filter(x=>cr.includes(x.s.creneau||'Matin'));
   const part=t=>all.filter(x=>(x.p.tournee||'')===t&&S.patients[x.s.patientId]).map(x=>({id:x.s.patientId,n:fullName(S.patients[x.s.patientId]),c:x.s.creneau||'Matin',h:x.s.heure||''}));
-  const bil=Object.values(S.bilans).filter(x=>x.date===d&&S.patients[x.patientId]).sort((x,y)=>String(x.heure||'99').localeCompare(String(y.heure||'99')))
-    .map(x=>{const tr=tourOf(x.patientId,d);return fullName(S.patients[x.patientId])+(tr?' ('+tr+')':'')});
+  const bil=Object.values(S.bilans).filter(x=>x.date===d&&S.patients[x.patientId]&&(!pt||((x.heure||'')<'15:00')===(pt==='matin'))).sort((x,y)=>String(x.heure||'99').localeCompare(String(y.heure||'99')))
+    .map(x=>{const tr=tourOf(x.patientId,d);return (x.heure?x.heure+' ':'')+fullName(S.patients[x.patientId])+(tr?' ('+tr+')':'')});
   return [['Montagne',part('Montagne')],['Plaine',part('Plaine')],['Sans tournée',part('')],['Bilans',bil]];
 }
 let TC=null;
 const TCK=['Montagne','Plaine','Sans tournée'];
-function openTourCopy(d,keep){
-  const P=tourParts(d);
-  TC={d,L:{Montagne:P[0][1],Plaine:P[1][1],'Sans tournée':P[2][1]},bil:P[3][1],sel:null,orig:keep?keep.orig:{}};
+function openTourCopy(d,keep,part){
+  part=part||(keep&&keep.part)||'matin';
+  const P=tourParts(d,part);
+  TC={d,part,L:{Montagne:P[0][1],Plaine:P[1][1],'Sans tournée':P[2][1]},bil:P[3][1],sel:null,orig:keep?keep.orig:{}};
   let c=document.getElementById('tcp');if(!c){c=document.createElement('div');c.id='tcp';document.body.appendChild(c);
     c.addEventListener('click',tcClick)}
   drawTC();
@@ -787,12 +791,12 @@ function drawTC(){
   const sec=k=>{let last='';const L=TC.L[k];
     return `<section class="tcsec"><div class="tchead"><b>${k.toUpperCase()}</b><em>${L.length} passage${L.length>1?'s':''}</em></div>
     <div class="tclist">${L.map(({id,n,c:cr},i)=>{const on=TC.sel&&TC.sel.k===k&&TC.sel.i===i,def=(S.patients[id]||{}).tournee||'',mv=k!=='Sans tournée'&&def!==k;
-      const sub=cr!==last?`<div class="tcsub">${esc(cr)}</div>`:'';last=cr;
-      return `${sub}<div class="tcitem ${on?'on':''}"><button class="tcname ${tclass(k)} ${mv?'moved':''}" data-tc="sel" data-k="${esc(k)}" data-i="${i}" aria-expanded="${on}">${esc(n)}${mv?`<small>basculé${def?' · d\'habitude en '+esc(def):''}</small>`:''}</button>
+      const sub='';
+      return `${sub}<div class="tcitem ${on?'on':''}"><button class="tcname ${tclass(k)} ${mv?'moved':''}" data-tc="sel" data-k="${esc(k)}" data-i="${i}" aria-expanded="${on}"><span class="tch">${esc(TC.L[k][i].h||'--:--')}</span>${esc(n)}${mv?`<small>basculé${def?' · d\'habitude en '+esc(def):''}</small>`:''}</button>
       ${on?`<div class="tcmenu">${['Montagne','Plaine'].filter(t=>t!==k).map(t=>`<button class="btn" data-tc="move" data-to="${t}">Passer en ${t}</button>`).join('')}</div>`:''}</div>`}).join('')||'<div class="tcnone">Personne</div>'}</div></section>`};
   const st=c.querySelector('.sheet'),y=st?st.scrollTop:0;
   c.innerHTML=`<div class="overlay" style="z-index:30" data-tc="bg"><div class="sheet" role="dialog" aria-modal="true" aria-label="Planning tournée">
-    <div class="head"><h2>Planning tournée</h2><button class="iconbtn" data-tc="close" aria-label="Fermer">${ICON.close}</button></div>
+    <div class="head"><h2>Planning tournée ${TC.part==='soir'?'soir':'matin'}</h2><button class="iconbtn" data-tc="close" aria-label="Fermer">${ICON.close}</button></div>
     <div class="datebar" style="margin:0"><button class="iconbtn" data-tc="day" data-n="-1" aria-label="Jour précédent">${ICON.prev}</button><div class="d"><label>${esc(fmtLong(TC.d))}</label></div><button class="iconbtn" data-tc="day" data-n="1" aria-label="Jour suivant">${ICON.next}</button></div>
     <div style="font-size:.85rem;color:var(--muted)">Touchez un patient pour le changer de tournée (tous ses passages du jour suivent).</div>
     ${keys.map(sec).join('')}
@@ -812,19 +816,19 @@ function tcClick(e){
     if(!(key in TC.orig)) TC.orig[key]=((S.dayT||{})[d]||{})[x.id]||null;
     const mv=TC.L[k].filter(y=>y.id===x.id);TC.L[k]=TC.L[k].filter(y=>y.id!==x.id);tcSort(TC.L[to].push(...mv)&&TC.L[to]);TC.sel=null;drawTC();
     w([{t:'tournee',date:d,id:x.id,val:to===def?null:to}]).then(ok=>{if(ok)toast(x.n+' : '+to+' le '+fmtShort(d)+(to===def?' (tournée habituelle)':' seulement'));render();
-      if(TC&&TC.d===d){const o=TC.orig;openTourCopy(d,{orig:o})}});
+      if(TC&&TC.d===d)openTourCopy(d,TC)});
     return}
   if(a==='undo'){ /* remet chaque patient basculé dans sa tournée d'avant */
     const ops=Object.entries(TC.orig).map(([key,v])=>{const [d,id]=key.split('|');return {t:'tournee',date:d,id,val:v}});
     const d=TC.d;TC.orig={};
-    const done=()=>{openTourCopy(d);render();toast('Tous les changements sont annulés.')};
+    const pt=TC.part,done=()=>{openTourCopy(d,null,pt);render();toast('Tous les changements sont annulés.')};
     if(ops.length) w(ops).then(done); else done();
     return}
   if(a==='copy'){
-    const block=L=>{let last='';const out=[];L.forEach(x=>{if(x.c!==last){out.push(x.c);last=x.c}out.push(x.n)});return out.join('\n')};
+    const block=L=>L.map(x=>(x.h?x.h+' ':'')+x.n).join('\n');
     const txt=TCK.filter(k=>k!=='Sans tournée'||TC.L[k].length).map(k=>{const n=TC.L[k].length;return k.toUpperCase()+' ('+n+' passage'+(n>1?'s':'')+') :\n'+(block(TC.L[k])||'Personne')})
       .concat(TC.bil.length?['BILANS ('+TC.bil.length+') :\n'+TC.bil.join('\n')]:[]).join('\n\n');
-    copyText('Tournée du '+fmtLong(TC.d)+'\n\n'+txt,'Liste copiée : collez-la dans le message à votre collègue.')}
+    copyText('Tournée du '+fmtLong(TC.d)+(TC.part==='soir'?' – soir':' – matin')+'\n\n'+txt,'Liste copiée : collez-la dans le message à votre collègue.')}
 }
 function copyText(txt,ok){
   const fb=()=>{const ta=document.createElement('textarea');ta.value=txt;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;top:0;left:0;opacity:0';document.body.appendChild(ta);ta.select();
@@ -1412,7 +1416,7 @@ document.addEventListener('click',e=>{
       const done=()=>toast('Numéro copié : '+n+'. Si l\'appel ne se lance pas, collez-le dans votre téléphone.');
       try{navigator.clipboard.writeText(n).then(done,()=>toast('Numéro : '+n))}catch(_){toast('Numéro : '+n)}
       break;}
-    case 'copytour': openTourCopy(addDays(S.date,1));break;
+    case 'copytour': openTourCopy(addDays(S.date,1),null,el.dataset.part||'matin');break;
     case 'addimprevu': openModal({pid:null,mode:'exc',date:S.date,draft:{vu:true}});break;
     case 'expall': case 'expnone': (M.days||[]).forEach(x=>M.checked[x.d]=a==='expall');drawModal();break;
     case 'expsend': sendExport();break;

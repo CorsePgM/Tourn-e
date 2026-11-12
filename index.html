@@ -168,6 +168,8 @@ textarea{resize:vertical;min-height:60px}
 .mini{display:inline-flex;align-items:center;gap:5px;border-radius:7px;padding:2px 7px;background:var(--surface-2);border:1px solid var(--line);font-size:.84rem}
 .bil{color:var(--warn);font-weight:700;font-size:.85rem}
 .card.rempl{gap:8px}
+.card.trans{gap:8px}.transbtn{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;padding:0;text-align:left;font-size:1rem;color:inherit;cursor:pointer}.transbtn .transprev{flex:1;min-width:0;color:var(--muted);font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.transbtn .chev{margin-left:auto;font-size:.7rem;color:var(--muted)}
+#f_trans{width:100%;box-sizing:border-box;font:inherit;font-size:.95rem;line-height:1.45;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface,#fff);resize:vertical}
 .bhsel{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:4px 6px;font-weight:700;font-variant-numeric:tabular-nums;font-size:.9rem;width:auto}
 .hdrrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .bilbtn{border:0;border-radius:999px;padding:6px 12px;font-weight:800;font-size:.85rem;background:var(--bad);color:#fff}
@@ -353,9 +355,9 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="12/11 22:17"</script>
-<script src="runtime.js?v=12112217"></script>
-<script src="pdf.js?v=12112217"></script>
+<script>window.__BUILD="12/11 23:06"</script>
+<script src="runtime.js?v=12112306"></script>
+<script src="pdf.js?v=12112306"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -570,7 +572,7 @@ function render(){
   const sync=document.getElementById('sync');
   sync.textContent=S.dbState==='ok'?(S.canWrite?'':'Lecture seule'):S.dbState==='none'?(ready()?'':'Hors ligne'):(ready()?'':'Chargement…');
   // garde la saisie en cours
-  const ae=document.activeElement, keep=ae&&ae.id&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA')&&document.getElementById('view').contains(ae)?{id:ae.id,v:ae.value,s:ae.selectionStart}:null;
+  const ae=document.activeElement, keep=ae&&ae.id&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA')&&document.getElementById('view').contains(ae)?{id:ae.id,v:ae.value,s:ae.selectionStart,dd:ae.dataset.date}:null;
   document.getElementById('hdr').innerHTML=hdr();
   const pr=document.getElementById('roll'),prevSL=pr?pr.scrollLeft:null,prevRS=S._rrs;
   document.getElementById('view').innerHTML=S.dbState==='none'&&!ready()?offline():(S.tab==='jour'?vJour():S.tab==='semaine'?vSemaine():vPatients());
@@ -581,7 +583,7 @@ function render(){
     else if(prevSL!=null) r.scrollLeft=prevSL+(prevRS&&prevRS!==S.rs?diffDays(S.rs,prevRS)*cw:0);
     else r.scrollLeft=diffDays(S.rs,S.week)*cw;
     S._rrs=S.rs;rollUpdate(r,true)} else S._rrs=null;
-  if(keep){const el=document.getElementById(keep.id);if(el){el.value=keep.v;el.focus();try{el.setSelectionRange(keep.s,keep.s)}catch(e){}}}
+  if(keep){const el=document.getElementById(keep.id);if(el&&el.dataset.date===keep.dd){el.value=keep.v;el.focus();try{el.setSelectionRange(keep.s,keep.s)}catch(e){}}}
 }
 const LAND=window.matchMedia('(orientation:landscape) and (min-width:600px)');
 function trackOf(r){return r&&(r.querySelector('.track')||r)}
@@ -782,6 +784,10 @@ function vJour(){
   if(all.length&&S.canWrite) h+='<div class="hint">Touchez la case pour « vu », restez appuyé pour « absent ».</div>';
   h+=sum;
   {const r=(S.dayR||{})[S.date]||{};
+   /* transmission du jour (texte libre), gardée avec la journée */
+   const tr=r.trans||'';
+   h+=`<section class="card trans"><button class="transbtn" data-act="transtoggle" aria-expanded="${!!S.transOpen}">📝 <b>Transmission</b>${tr&&!S.transOpen?`<span class="transprev">${esc(tr.split('\n')[0].slice(0,60))}${tr.length>60||tr.includes('\n')?'…':''}</span>`:''}<span class="chev">${S.transOpen?'▲':'▼'}</span></button>
+     ${S.transOpen?`<textarea id="f_trans" data-date="${S.date}" rows="5" placeholder="Notez ici les transmissions du jour…" ${S.canWrite?'':'disabled'}>${esc(tr)}</textarea><small class="gpshint">Enregistré automatiquement, pour le ${esc(fmtLong(S.date))}.</small>`:''}</section>`;
    h+=`<section class="card rempl"><label class="checkrow"><input type="checkbox" id="f_remplon" ${r.on?'checked':''} ${S.canWrite?'':'disabled'}><span class="t"><b>Journée faite par une remplaçante</b></span></label>
      ${r.on?`<label class="field"><span>Prénom de la remplaçante</span><input type="text" id="f_remplnom" value="${esc(r.prenom||'')}" placeholder="Ex. Julie" autocomplete="off" autocapitalize="words" ${S.canWrite?'':'disabled'}></label>`:''}</section>`;}
   if(S.canWrite&&all.length)h+=`<div class="exportcta"><button class="btn ghost" data-act="resethours">Remettre les horaires en quarts d'heure</button></div>`;
@@ -1377,6 +1383,8 @@ function toggleVu(id){
   if(S.vus[id]&&S.date<today()){askConfirm('Décocher ce passage d\'une journée passée ('+fmtLong(S.date)+') ?',()=>setVu(id,false));return}
   setVu(id,S.vus[id]?false:true)}
 /* petite fenêtre de confirmation */
+function saveTrans(v,quiet,d){d=d||S.date;const r=(S.dayR||{})[d]||{},t=String(v||'').replace(/\s+$/,'');if(t===(r.trans||''))return;
+  w([{t:'rempl',date:d,val:{on:!!r.on,prenom:r.prenom||'',trans:t}}]).then(ok=>{if(ok&&!quiet)toast('Transmission enregistrée')})}
 function askConfirm(msg,yes,lbl){
   let c=document.getElementById('cfm');if(!c){c=document.createElement('div');c.id='cfm';document.body.appendChild(c)}
   c.innerHTML=`<div class="overlay" style="z-index:45;align-items:center"><div class="sheet" style="border-radius:20px;max-width:420px;gap:12px" role="alertdialog" aria-modal="true">
@@ -1517,6 +1525,8 @@ document.addEventListener('click',e=>{
       try{navigator.clipboard.writeText(n).then(done,()=>toast('Numéro : '+n))}catch(_){toast('Numéro : '+n)}
       break;}
     case 'resethours': askConfirm('Remettre tous les horaires en quarts d\'heure, dans l\'ordre actuel ? Les heures changées à la main seront effacées, pour tous les jours.',resetHours,'Remettre');break;
+    case 'transtoggle': {const t=document.getElementById('f_trans');if(t)saveTrans(t.value,true,t.dataset.date);S.transOpen=!S.transOpen;render();
+      if(S.transOpen)setTimeout(()=>{const x=document.getElementById('f_trans');if(x){x.focus();x.setSelectionRange(x.value.length,x.value.length)}},60);break;}
     case 'sethour': openHourPick(el.dataset.id);break;
     case 'copytour': openTourCopy(addDays(S.date,1),null,el.dataset.part||'matin');break;
     case 'addimprevu': openModal({pid:null,mode:'exc',date:S.date,draft:{vu:true}});break;
@@ -1553,8 +1563,9 @@ document.addEventListener('change',e=>{
     openModal({pid:null,mode:'editp',excDraft:dr});return}
   if(el.dataset.act==='tache'){const id=el.dataset.id;w([{t:'update',path:'taches/'+id,data:{fait:el.checked}}])}
   if(el.classList&&el.classList.contains('bhsel')){const id=el.dataset.bid;w([{t:'update',path:'bilans/'+id,data:{heure:el.value}}]).then(ok=>{if(ok)toast(el.value?'Bilan à '+el.value:'Heure du bilan retirée')});return}
-  if(el.id==='f_remplon'){const r=(S.dayR||{})[S.date]||{};w([{t:'rempl',date:S.date,val:{on:el.checked,prenom:r.prenom||''}}]).then(()=>{if(el.checked)setTimeout(()=>{const t=document.getElementById('f_remplnom');if(t)t.focus()},60)});return}
-  if(el.id==='f_remplnom'){w([{t:'rempl',date:S.date,val:{on:true,prenom:el.value.trim()}}]).then(ok=>{if(ok&&el.value.trim())toast('Remplaçante : '+el.value.trim())});return}
+  if(el.id==='f_trans'){const v=el.value,dd=el.dataset.date;setTimeout(()=>saveTrans(v,false,dd),350);return} /* léger délai : le bouton touché juste après fonctionne du premier coup */
+  if(el.id==='f_remplon'){const r=(S.dayR||{})[S.date]||{};w([{t:'rempl',date:S.date,val:{on:el.checked,prenom:r.prenom||'',trans:r.trans||''}}]).then(()=>{if(el.checked)setTimeout(()=>{const t=document.getElementById('f_remplnom');if(t)t.focus()},60)});return}
+  if(el.id==='f_remplnom'){const r=(S.dayR||{})[S.date]||{};w([{t:'rempl',date:S.date,val:{on:true,prenom:el.value.trim(),trans:r.trans||''}}]).then(ok=>{if(ok&&el.value.trim())toast('Remplaçante : '+el.value.trim())});return}
   if(el.dataset.act==='bilan'&&!el.checked&&S.date<today()){el.checked=true;const id=el.dataset.id;askConfirm('Décocher ce bilan d\'une journée passée ('+fmtLong(S.date)+') ?',()=>w([{t:'update',path:'bilans/'+id,data:{fait:false}}]));return}
   if(el.dataset.act==='bilan'){const id=el.dataset.id;w([{t:'update',path:'bilans/'+id,data:{fait:el.checked}}])}
 });
@@ -1697,7 +1708,7 @@ function subDay(){
   const d=S.date;
   unsubDay=S.db.doc('passages/'+d).onSnapshot(snap=>{const dd=snap.exists?(snap.data()||{}):{};SV.days[d]=dd.vus||{};SV.dayH=SV.dayH||{};SV.dayH[d]=dd.heures||{};SV.dayT=SV.dayT||{};SV.dayT[d]=dd.tournees||{};SV.dayR=SV.dayR||{};SV.dayR[d]=dd.rempl||null;saveCache();if(d!==S.date)return;recompute();render()},()=>{});
 }
-function setDate(d){if(d===S.date){render();return}S.date=d;subDay();render()}
+function setDate(d){if(d===S.date){render();return}{const t=document.getElementById('f_trans');if(t)saveTrans(t.value,true,t.dataset.date)}S.date=d;subDay();render()}
 function subCol(name){
   S.db.collection(name).onSnapshot(snap=>{if(snap.metadata&&snap.metadata.fromCache&&!snap.size&&Object.keys(SV[name]).length)return;const o={};snap.docs.forEach(d=>o[d.id]=d.data());SV[name]=o;saveCache();recompute();S.loaded.add(name);render();if(M)refreshModal()},err=>{S.loaded.add(name);render()});
 }

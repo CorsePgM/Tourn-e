@@ -352,9 +352,9 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="11/11 23:58"</script>
-<script src="runtime.js?v=11112358"></script>
-<script src="pdf.js?v=11112358"></script>
+<script>window.__BUILD="12/11 22:03"</script>
+<script src="runtime.js?v=12112203"></script>
+<script src="pdf.js?v=12112203"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -507,6 +507,18 @@ function bhSelect(id,h){let o=`<option value="" ${h?'':'selected'}>--:--</option
   if(h&&!o.includes('>'+h+'<'))o+=`<option selected>${esc(h)}</option>`;
   return S.canWrite?`<select class="bhsel" data-bid="${esc(id)}" aria-label="Heure du bilan">${o}</select>`:(h?'<b>'+esc(h)+'</b> · ':'')}
 function tourOf(pid,d){const o=((S.dayT||{})[d]||{})[pid];return o||(S.patients[pid]||{}).tournee}
+/* tournée d'un passage : ce passage ce jour-là > toute la journée ce jour-là > réglage du créneau dans la fiche > tournée de la fiche */
+function defTour(pid,c){const p=S.patients[pid]||{};return (p.tparC&&p.tparC[c])||p.tournee}
+function dayTour(pid,c,d){const o=((S.dayT||{})[d]||{})[pid];return o||defTour(pid,c)}
+function tourOfV(pid,c,d){const o=((S.dayT||{})[d]||{})[pid+'@'+c];return o||dayTour(pid,c,d)}
+/* opérations pour changer la tournée d'un patient un jour donné : un seul passage (c) ou toute la journée */
+function tourOps(pid,d,to,c){
+  const dt=(S.dayT||{})[d]||{};
+  if(c){const base=dayTour(pid,c,d);return [{t:'tournee',date:d,id:pid+'@'+c,val:to===base?null:to}]}
+  const ops=[{t:'tournee',date:d,id:pid,val:to===(S.patients[pid]||{}).tournee&&!CRENEAUX.some(k=>defTour(pid,k)!==to)?null:to}];
+  CRENEAUX.forEach(k=>{if(dt[pid+'@'+k])ops.push({t:'tournee',date:d,id:pid+'@'+k,val:null})});
+  return ops;
+}
 function visitesDu(d,tournee){
   const wd=wdIdx(d);
   const list=Object.entries(S.soins).filter(([id,s])=>{
@@ -516,10 +528,10 @@ function visitesDu(d,tournee){
     else if(!cadenceOk(s,d,wd)) return false;
     if(s.debut&&s.debut>d) return false;
     if(s.fin&&s.fin<d) return false;
-    if(tournee&&tournee!=='Toutes'&&tourOf(s.patientId,d)!==tournee) return false;
     return true;
-  }).flatMap(([id,s])=>{const p0=S.patients[s.patientId],t=tourOf(s.patientId,d),p=t===p0.tournee?p0:Object.assign({},p0,{tournee:t,_defT:p0.tournee});
-    return creneauxOf(s).map(c=>({sid:id,s:Object.assign({},s,{creneau:c,heure:heureOf(s,c)}),p}));})
+  }).flatMap(([id,s])=>{const p0=S.patients[s.patientId];
+    return creneauxOf(s).map(c=>{const t=tourOfV(s.patientId,c,d),df=defTour(s.patientId,c),p=t===p0.tournee&&df===p0.tournee?p0:Object.assign({},p0,{tournee:t},t!==df?{_defT:df}:{});
+      return {sid:id,s:Object.assign({},s,{creneau:c,heure:heureOf(s,c)}),p}}).filter(x=>!tournee||tournee==='Toutes'||x.p.tournee===tournee);})
    .reduce((acc,x)=>{ /* un seul passage par patient et par créneau : les soins s'ajoutent au même passage */
      const key=x.s.patientId+'@'+(x.s.creneau||'Matin'),m=acc.map[key];
      if(!m){const v={id:key,sid:x.sid,sids:[x.sid],excSids:x.s.exceptionnel?[x.sid]:[],p:x.p,s:Object.assign({},x.s,{soins:(x.s.soins||[]).filter(Boolean).slice()})};acc.map[key]=v;acc.list.push(v)}
@@ -805,15 +817,15 @@ function drawTC(){
   const keys=TCK.filter(k=>k!=='Sans tournée'||TC.L[k].length);
   const sec=k=>{let last='';const L=TC.L[k];
     return `<section class="tcsec"><div class="tchead"><b>${k.toUpperCase()}</b><em>${L.length} passage${L.length>1?'s':''}</em></div>
-    <div class="tclist">${L.map(({id,n,c:cr},i)=>{const on=TC.sel&&TC.sel.k===k&&TC.sel.i===i,def=(S.patients[id]||{}).tournee||'',mv=k!=='Sans tournée'&&def!==k;
+    <div class="tclist">${L.map(({id,n,c:cr},i)=>{const on=TC.sel&&TC.sel.k===k&&TC.sel.i===i,def=defTour(id,cr)||'',mv=k!=='Sans tournée'&&def!==k;
       const sub='';
       return `${sub}<div class="tcitem ${on?'on':''}"><button class="tcname ${tclass(k)} ${mv?'moved':''}" data-tc="sel" data-k="${esc(k)}" data-i="${i}" aria-expanded="${on}">${esc(n)}<span class="tch">${esc(TC.L[k][i].h||'--:--')}</span>${mv?`<small>basculé${def?' · d\'habitude en '+esc(def):''}</small>`:''}</button>
-      ${on?`<div class="tcmenu">${['Montagne','Plaine'].filter(t=>t!==k).map(t=>`<button class="btn" data-tc="move" data-to="${t}">Passer en ${t}</button>`).join('')}<button class="btn ghost" data-tc="hide">📁 Dossier caché</button></div>`:''}</div>`}).join('')||'<div class="tcnone">Personne</div>'}</div></section>`};
+      ${on?(()=>{const nb=visitesDu(TC.d,'Toutes').filter(v=>v.s.patientId===id).length;return `<div class="tcmenu">${['Montagne','Plaine'].filter(t=>t!==k).map(t=>nb>1?`<button class="btn" data-tc="move" data-to="${t}" data-one="1">Passer en ${t} : ce passage (${esc(cr.toLowerCase())})</button><button class="btn" data-tc="move" data-to="${t}">Passer en ${t} : toute la journée</button>`:`<button class="btn" data-tc="move" data-to="${t}" data-one="1">Passer en ${t}</button>`).join('')}<button class="btn ghost" data-tc="hide">📁 Dossier caché</button></div>`})():''}</div>`}).join('')||'<div class="tcnone">Personne</div>'}</div></section>`};
   const st=c.querySelector('.sheet'),y=st?st.scrollTop:0;
   c.innerHTML=`<div class="overlay" style="z-index:30" data-tc="bg"><div class="sheet" role="dialog" aria-modal="true" aria-label="Planning tournée">
     <div class="head"><h2>Planning tournée ${TC.part==='soir'?'soir':'matin'}</h2><button class="iconbtn" data-tc="close" aria-label="Fermer">${ICON.close}</button></div>
     <div class="datebar" style="margin:0"><button class="iconbtn" data-tc="day" data-n="-1" aria-label="Jour précédent">${ICON.prev}</button><div class="d"><label>${esc(fmtLong(TC.d))}</label></div><button class="iconbtn" data-tc="day" data-n="1" aria-label="Jour suivant">${ICON.next}</button></div>
-    <div style="font-size:.85rem;color:var(--muted)">Touchez un patient pour le changer de tournée (tous ses passages du jour suivent).</div>
+    <div style="font-size:.85rem;color:var(--muted)">Touchez un patient pour changer ce passage (ou toute sa journée) de tournée.</div>
     ${keys.map(sec).join('')}
     ${TC.bil.length?`<section class="tcsec"><div class="tchead"><b>BILANS</b><em>${TC.bil.length}</em></div><div class="tclist">${TC.bil.map(n=>`<div class="tcname static">${esc(n)}</div>`).join('')}</div></section>`:''}
     <button class="tchidbtn" data-tc="showhid" aria-expanded="${TC.showH}">📁 Dossier caché <em>${TC.H.length}</em><span>${TC.showH?'▲':'▼'}</span></button>
@@ -834,11 +846,12 @@ function tcClick(e){
   if(a==='hide'||a==='unhide'){const {k,i}=TC.sel,x=(k==='Caché'?TC.H:TC.L[k])[i];
     tcSetHid(x.vid,a==='hide');
     toast(x.n+' ('+x.c+') '+(a==='hide'?'mis dans le dossier caché pour tous les jours':'sorti du dossier caché'));openTourCopy(TC.d,TC);return}
-  if(a==='move'){ /* la bascule vaut pour tous les passages du patient ce jour-là, et pour la tournée du jour (export, vue du jour) */
-    const {k,i}=TC.sel,x=TC.L[k][i],to=el.dataset.to,def=(S.patients[x.id]||{}).tournee,d=TC.d,key=d+'|'+x.id;
-    if(!(key in TC.orig)) TC.orig[key]=((S.dayT||{})[d]||{})[x.id]||null;
-    const mv=TC.L[k].filter(y=>y.id===x.id);TC.L[k]=TC.L[k].filter(y=>y.id!==x.id);tcSort(TC.L[to].push(...mv)&&TC.L[to]);TC.sel=null;drawTC();
-    w([{t:'tournee',date:d,id:x.id,val:to===def?null:to}]).then(ok=>{if(ok)toast(x.n+' : '+to+' le '+fmtShort(d)+(to===def?' (tournée habituelle)':' seulement'));render();
+  if(a==='move'){ /* ce passage seulement, ou toute la journée ; vaut aussi pour la tournée du jour (export, vue du jour) */
+    const {k,i}=TC.sel,x=TC.L[k][i],to=el.dataset.to,d=TC.d,one=!!el.dataset.one;
+    const ops=tourOps(x.id,d,to,one?x.c:null);
+    ops.forEach(o=>{const key=d+'|'+o.id;if(!(key in TC.orig))TC.orig[key]=((S.dayT||{})[d]||{})[o.id]||null});
+    TC.sel=null;
+    w(ops).then(ok=>{if(ok)toast(x.n+' : '+to+(one?' ('+x.c.toLowerCase()+')':' (toute la journée)')+' le '+fmtShort(d));render();
       if(TC&&TC.d===d)openTourCopy(d,TC)});
     return}
   if(a==='undo'){ /* remet chaque patient basculé dans sa tournée d'avant */
@@ -899,7 +912,10 @@ function visitCard({id,sid,excSids,s,p,fix}){
     ${open?`<div class="detail">
       <div class="fullname">${esc(fullName(p))}</div>
       <div class="who">${S.canWrite?`<button class="tag tagbtn ${tclass(p.tournee)}" data-act="asktournee" data-id="${id}" aria-label="Changer de tournée">${esc(p.tournee||'Sans tournée')}${p._defT?' (ce jour)':''} ⇄</button>`:(p.tournee?`<span class="tag ${tclass(p.tournee)}">${esc(p.tournee)}</span>`:'')}<span class="commune">${esc(p.adresse||'')}${p.commune?', '+esc(p.commune):''}</span></div>
-      ${S.switchT===id?(()=>{const to=p.tournee==='Montagne'?'Plaine':'Montagne';return `<div class="confirm"><b>Voulez-vous vraiment passer ${esc(fullName(p))} ${p.tournee?'de '+esc(p.tournee)+' à ':'en '}${to} ${S.date===today()?'aujourd\'hui':'le '+esc(fmtLong(S.date))} seulement ?</b><span style="font-size:.85rem">${to===(p._defT||p.tournee)?'Il revient dans sa tournée habituelle.':'Les autres jours, il reste en '+esc(p._defT||p.tournee)+'.'}</span><div class="formbtns"><button class="btn ghost" data-act="tourneeno">Annuler</button><button class="btn" data-act="tourneeyes" data-pid="${esc(s.patientId)}" data-to="${to}">Passer en ${to} ce jour-là</button></div></div>`})():''}
+      ${S.switchT===id?(()=>{const to=p.tournee==='Montagne'?'Plaine':'Montagne',c=s.creneau||'Matin',jour=S.date===today()?'aujourd\'hui':'le '+esc(fmtLong(S.date)),
+        nb=visitesDu(S.date,'Toutes').filter(v=>v.s.patientId===s.patientId).length;
+        return `<div class="confirm"><b>Passer ${esc(fullName(p))} ${p.tournee?'de '+esc(p.tournee)+' à ':'en '}${to} ${jour} ?</b><span style="font-size:.85rem">Les autres jours, il garde sa tournée habituelle.</span>
+        <div class="formbtns" style="flex-wrap:wrap"><button class="btn ghost" data-act="tourneeno">Annuler</button>${nb>1?`<button class="btn" data-act="tourneeyes" data-pid="${esc(s.patientId)}" data-c="${esc(c)}" data-to="${to}">Seulement ce passage (${esc(c.toLowerCase())})</button><button class="btn" data-act="tourneeyes" data-pid="${esc(s.patientId)}" data-to="${to}">Toute la journée</button>`:`<button class="btn" data-act="tourneeyes" data-pid="${esc(s.patientId)}" data-c="${esc(c)}" data-to="${to}">Passer en ${to} ce jour-là</button>`}</div></div>`})():''}
       <div class="soins">${soins.map(x=>`<span>${esc(x)}</span>`).join('')}</div>
       ${notes.length?`<div class="note"><small>Accès / remarques</small>${notes.map(esc).join(' · ')}</div>`:''}
       <div class="actions">
@@ -1012,7 +1028,7 @@ function viewPatient(id,p){
   const ss=Object.entries(S.soins).filter(([,s])=>s.patientId===id&&!s.exceptionnel).sort((a,b)=>CRENEAUX.indexOf(a[1].creneau)-CRENEAUX.indexOf(b[1].creneau));
   const bl=Object.entries(S.bilans).filter(([,b])=>b.patientId===id).sort((a,b)=>String(b[1].date).localeCompare(a[1].date));
   const addr=[p.adresse,p.commune].filter(Boolean).join(', ');
-  let h=`<div>${p.tournee?`<span class="tag ${tclass(p.tournee)}">Tournée ${esc(p.tournee)}</span>`:''}</div>
+  let h=`<div style="display:flex;gap:6px;flex-wrap:wrap">${p.tournee?`<span class="tag ${tclass(p.tournee)}">Tournée ${esc(p.tournee)}</span>`:''}${Object.entries(p.tparC||{}).map(([c,t])=>`<span class="tag ${tclass(t)}">${esc(c)} : ${esc(t)}</span>`).join('')}</div>
   <dl class="info">
     <dt>Adresse</dt><dd>${esc(addr)||'—'}${mapsUrl(p)?` · <a href="${esc(mapsUrl(p))}" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700">Y aller</a>`:''}</dd>
     <dt>Plus code</dt><dd>${p.gps?`<span class="tel" style="color:var(--ink)">${esc(p.gps)}</span>`:'—'}</dd>
@@ -1055,6 +1071,8 @@ function formPatient(p){
     ${fld('f_acces','Accès / digicode',p.acces,'text','autocomplete="off"')}
     <div class="grid2">${fld('f_medecin','Médecin',p.medecin,'text','autocomplete="off"')}
     <label class="field"><span>Tournée</span><select id="f_tournee" name="f_tournee">${['Plaine','Montagne'].map(t=>`<option ${p.tournee===t?'selected':''}>${t}</option>`).join('')}</select></label></div>
+    ${(()=>{const cs=CRENEAUX.filter(c=>M.pid&&Object.values(S.soins).some(x=>x.patientId===M.pid&&!x.exceptionnel&&creneauxOf(x).includes(c)));if(cs.length<2)return '';const tp=p.tparC||{};
+      return `<div class="field"><span>Tournée par passage <small style="font-weight:400;color:var(--muted)">(si un passage se fait dans l'autre tournée)</small></span><div class="grid2">${cs.map(c=>`<label class="field"><span>${c}</span><select id="f_tp_${c}"><option value="">Comme la tournée</option>${['Plaine','Montagne'].map(t=>`<option ${tp[c]===t?'selected':''}>${t}</option>`).join('')}</select></label>`).join('')}</div></div>`})()}
     <label class="field"><span>Remarques</span><textarea id="f_remarques" name="f_remarques">${esc(p.remarques||'')}</textarea></label>
     ${M.pid?(()=>{const ss=Object.entries(S.soins).filter(([,x])=>x.patientId===M.pid&&!x.exceptionnel);
       return `<div class="card" style="gap:6px"><h2>Soins <button type="button" class="linkbtn" data-act="newsoin">+ Ajouter un soin</button></h2>${ss.length?ss.map(([sid,x])=>`<div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><span style="min-width:0">${esc((x.soins||[]).filter(Boolean).join(' + '))}</span><button type="button" class="linkbtn" data-act="editsoin" data-id="${sid}">Modifier</button></div>`).join(''):'<span style="color:var(--muted)">Aucun soin programmé.</span>'}</div>`})():''}
@@ -1350,6 +1368,7 @@ async function savePatient(){
   const graw=val('f_gps'), gps=parseGps(graw);
   if(graw&&!gps){showErr('Le plus code n\'est pas reconnu. Collez celui copié dans Google Maps, par exemple MFXV+3X Bastia.');return}
   const obj={nom:nom.toUpperCase(),prenom:val('f_prenom'),naissance:val('f_naiss')||'',gps:gps||'',adresse:val('f_adresse'),commune:val('f_commune'),tel:val('f_tel'),fixe:val('f_fixe'),acces:val('f_acces'),medecin:val('f_medecin'),remarques:val('f_remarques'),tournee:val('f_tournee')};
+  const tp={};CRENEAUX.forEach(c=>{const v=document.getElementById('f_tp_'+c)?val('f_tp_'+c):((S.patients[id]||{}).tparC||{})[c];if(v&&v!==obj.tournee)tp[c]=v});if(Object.keys(tp).length)obj.tparC=tp;
   const dr=M.excDraft,bd=M.bilDraft;
   if(await w([{t:'set',path:'patients/'+id,data:obj}])){S.patients[id]=obj;
     if(bd){const b={date:bd.date,patientId:id,detail:bd.detail||'',heure:bd.heure||'',fait:false};
@@ -1427,9 +1446,9 @@ document.addEventListener('click',e=>{
     case 'expand': S.open=S.open===el.dataset.id?null:el.dataset.id;S.switchT=null;render();break;
     case 'asktournee': S.switchT=el.dataset.id;render();break;
     case 'tourneeno': S.switchT=null;render();break;
-    case 'tourneeyes': {const pid=el.dataset.pid,to=el.dataset.to;S.switchT=null;
+    case 'tourneeyes': {const pid=el.dataset.pid,to=el.dataset.to,c=el.dataset.c||null;S.switchT=null;
       if(S.tournee!=='Toutes'&&S.tournee!==to){S.open=null}
-      const def=(S.patients[pid]||{}).tournee;w([{t:'tournee',date:S.date,id:pid,val:to===def?null:to}]).then(ok=>{if(ok)toast(fullName(S.patients[pid])+' : '+to+' le '+fmtShort(S.date)+(to===def?' (tournée habituelle)':' seulement'))});render();break;}
+      w(tourOps(pid,S.date,to,c)).then(ok=>{if(ok)toast(fullName(S.patients[pid])+' : '+to+(c?' ('+c.toLowerCase()+')':' (toute la journée)')+' le '+fmtShort(S.date))});render();break;}
     case 'goalerts': S.tab='patients';store.set('tab','patients');render();window.scrollTo(0,0);break;
     case 'cleartaches': w(Object.entries(S.taches).filter(([,t])=>t.fait).map(([k])=>({t:'del',path:'taches/'+k})));break;
     case 'reset': S.confirmReset=true;render();break;

@@ -353,9 +353,9 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="12/11 22:06"</script>
-<script src="runtime.js?v=12112206"></script>
-<script src="pdf.js?v=12112206"></script>
+<script>window.__BUILD="12/11 22:17"</script>
+<script src="runtime.js?v=12112217"></script>
+<script src="pdf.js?v=12112217"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -784,6 +784,7 @@ function vJour(){
   {const r=(S.dayR||{})[S.date]||{};
    h+=`<section class="card rempl"><label class="checkrow"><input type="checkbox" id="f_remplon" ${r.on?'checked':''} ${S.canWrite?'':'disabled'}><span class="t"><b>Journée faite par une remplaçante</b></span></label>
      ${r.on?`<label class="field"><span>Prénom de la remplaçante</span><input type="text" id="f_remplnom" value="${esc(r.prenom||'')}" placeholder="Ex. Julie" autocomplete="off" autocapitalize="words" ${S.canWrite?'':'disabled'}></label>`:''}</section>`;}
+  if(S.canWrite&&all.length)h+=`<div class="exportcta"><button class="btn ghost" data-act="resethours">Remettre les horaires en quarts d'heure</button></div>`;
   h+=exportCta();
   h+=`<div class="exportcta tcbtnrow"><button class="btn ghost" data-act="copytour" data-part="matin">${ICON.copy} Planning tournée matin</button><button class="btn ghost" data-act="copytour" data-part="soir">${ICON.copy} Planning tournée soir</button></div>`;
   return h;
@@ -870,6 +871,24 @@ function tcClick(e){
       .concat(TC.bil.length?['BILANS ('+TC.bil.length+') :\n'+TC.bil.join('\n')]:[]).join('\n\n');
     copyText('Tournée du '+fmtLong(TC.d)+(TC.part==='soir'?' – soir':' – matin')+'\n\n'+txt,'Liste copiée : collez-la dans le message à votre collègue.')}
 }
+/* ordre et heures valables tous les jours : rangés dans les soins (heures = ordre, hfix = heure fixée à la main) */
+function clearDayH(vid){const ops=[],t0=today();Object.entries(S.dayH||{}).forEach(([dd,m])=>{if(dd>=t0&&m&&m[vid])ops.push({t:'heure',date:dd,id:vid,val:null})});return ops}
+function soinHourOps(x,c,h,fix,acc){ /* fix : 'set' heure fixée, 'clear' enlève l'heure fixée, null ne touche pas.
+     acc regroupe les changements d'un même soin (un soin matin + soir n'est modifié qu'une fois) */
+  const own=!acc;acc=acc||{};
+  x.sids.filter(id=>S.soins[id]).forEach(id=>{const so=S.soins[id],dt=acc[id]=acc[id]||{};
+    if(h){dt.heures=Object.assign({},dt.heures||so.heures||{},{[c]:h});if(creneauxOf(so)[0]===c)dt.heure=h}
+    if(fix){const hf=Object.assign({},dt.hfix||so.hfix||{});hf[c]=fix==='set'?h:null;dt.hfix=hf /* null et pas delete : la mise à jour fusionne les sous-objets */}});
+  return own?accOps(acc):[];
+}
+const accOps=acc=>Object.entries(acc).map(([id,data])=>({t:'update',path:'soins/'+id,data}));
+function resetHours(){
+  const d=S.date,all=visitesDu(d,'Toutes'),rk={},ops=[],acc={};
+  all.forEach(x=>{const c=x.s.creneau||'Matin',k=(x.p.tournee||'')+'|'+c,r=rk[k]=(k in rk?rk[k]+1:0);
+    soinHourOps(x,c,fromMin(toMin(BASE[c]||'06:00')+15*r),'clear',acc);ops.push(...clearDayH(x.id))});
+  ops.unshift(...accOps(acc));
+  if(ops.length)w(ops).then(ok=>{if(ok)toast('Horaires remis en quarts d\'heure, dans l\'ordre actuel, pour tous les jours.')});
+}
 /* changer l'heure d'un passage à la main (6h09 au lieu des quarts d'heure) */
 function openHourPick(vid){
   const d=S.date,x=visitesDu(d,'Toutes').find(v=>v.id===vid);if(!x)return;
@@ -878,19 +897,17 @@ function openHourPick(vid){
   o.innerHTML=`<div class="overlay" style="z-index:45;align-items:center"><div class="sheet" style="border-radius:20px;max-width:420px;gap:12px" role="dialog" aria-modal="true" aria-label="Heure de passage">
     <b style="font-size:1.05rem">${esc(name)} · ${esc(c)}</b>
     <label class="field"><span>Heure de passage</span><input type="time" id="hr_t" step="60" value="${esc(x.s.heure||BASE[c])}"></label>
-    ${x.fix?`<div style="font-size:.85rem;color:var(--muted)">Heure fixée à la main ${x.fix.day?'pour ce jour':'pour tous les jours'}.</div>`:''}
-    <div class="formbtns" style="flex-wrap:wrap"><button class="btn" id="hr_day">Ce jour seulement</button><button class="btn ghost" id="hr_all">Tous les jours</button></div>
+    
+    <div style="font-size:.85rem;color:var(--muted)">L'heure s'applique tous les jours pour ce passage.</div>
+    <div class="formbtns" style="flex-wrap:wrap"><button class="btn" id="hr_all">Valider</button></div>
     <div class="formbtns" style="flex-wrap:wrap">${x.fix?'<button class="btn ghost" id="hr_reset">Revenir aux quarts d\'heure</button>':''}<button class="btn ghost" id="hr_no">Annuler</button></div></div></div>`;
   const close=()=>{o.innerHTML=''},get=()=>{const v=document.getElementById('hr_t').value;if(!/^\d\d:\d\d$/.test(v)){toast('Choisissez une heure.');return null}return v};
-  const soinOps=h=>x.sids.filter(id=>S.soins[id]).map(id=>{const hf=Object.assign({},S.soins[id].hfix||{});if(h)hf[c]=h;else delete hf[c];return {t:'update',path:'soins/'+id,data:{hfix:hf}}});
   o.querySelector('.overlay').onclick=e=>{if(e.target===e.currentTarget)close()};
   document.getElementById('hr_no').onclick=close;
-  document.getElementById('hr_day').onclick=()=>{const h=get();if(!h)return;close();
-    w([{t:'heure',date:d,id:vid,val:h+'!'}]).then(ok=>{if(ok)toast(name+' à '+h+' le '+fmtShort(d))})};
   document.getElementById('hr_all').onclick=()=>{const h=get();if(!h)return;close();
-    w(soinOps(h).concat(x.moved?[{t:'heure',date:d,id:vid,val:null}]:[])).then(ok=>{if(ok)toast(name+' à '+h+' tous les jours ('+c.toLowerCase()+')')})};
+    w(soinHourOps(x,c,h,'set').concat(clearDayH(vid))).then(ok=>{if(ok)toast(name+' à '+h+' tous les jours ('+c.toLowerCase()+')')})};
   const r=document.getElementById('hr_reset');if(r)r.onclick=()=>{close();
-    w(x.fix.day?[{t:'heure',date:d,id:vid,val:null}]:soinOps(null)).then(ok=>{if(ok)toast(name+' : retour aux quarts d\'heure')})};
+    w(soinHourOps(x,c,null,'clear').concat(clearDayH(vid))).then(ok=>{if(ok)toast(name+' : retour aux quarts d\'heure')})};
   setTimeout(()=>{const t=document.getElementById('hr_t');if(t)t.focus()},50);
 }
 function copyText(txt,ok){
@@ -1360,10 +1377,10 @@ function toggleVu(id){
   if(S.vus[id]&&S.date<today()){askConfirm('Décocher ce passage d\'une journée passée ('+fmtLong(S.date)+') ?',()=>setVu(id,false));return}
   setVu(id,S.vus[id]?false:true)}
 /* petite fenêtre de confirmation */
-function askConfirm(msg,yes){
+function askConfirm(msg,yes,lbl){
   let c=document.getElementById('cfm');if(!c){c=document.createElement('div');c.id='cfm';document.body.appendChild(c)}
   c.innerHTML=`<div class="overlay" style="z-index:45;align-items:center"><div class="sheet" style="border-radius:20px;max-width:420px;gap:12px" role="alertdialog" aria-modal="true">
-    <b style="font-size:1.05rem">${esc(msg)}</b><div class="formbtns"><button class="btn ghost" id="cfm_no">Annuler</button><button class="btn danger" id="cfm_yes">Décocher</button></div></div></div>`;
+    <b style="font-size:1.05rem">${esc(msg)}</b><div class="formbtns"><button class="btn ghost" id="cfm_no">Annuler</button><button class="btn danger" id="cfm_yes">${esc(lbl||'Décocher')}</button></div></div></div>`;
   const close=()=>{c.innerHTML=''};
   document.getElementById('cfm_no').onclick=close;
   document.getElementById('cfm_yes').onclick=()=>{close();yes()};
@@ -1499,6 +1516,7 @@ document.addEventListener('click',e=>{
       const done=()=>toast('Numéro copié : '+n+'. Si l\'appel ne se lance pas, collez-le dans votre téléphone.');
       try{navigator.clipboard.writeText(n).then(done,()=>toast('Numéro : '+n))}catch(_){toast('Numéro : '+n)}
       break;}
+    case 'resethours': askConfirm('Remettre tous les horaires en quarts d\'heure, dans l\'ordre actuel ? Les heures changées à la main seront effacées, pour tous les jours.',resetHours,'Remettre');break;
     case 'sethour': openHourPick(el.dataset.id);break;
     case 'copytour': openTourCopy(addDays(S.date,1),null,el.dataset.part||'matin');break;
     case 'addimprevu': openModal({pid:null,mode:'exc',date:S.date,draft:{vu:true}});break;
@@ -1650,8 +1668,9 @@ function dgEnd(e){
   /* nouvel ordre pour la tournée du patient déplacé : 6h00, 6h15, 6h30… */
   /* les heures changées à la main ne bougent jamais : seuls les autres passages sont renumérotés */
   const grp=arts.filter(a=>a.dataset.t===art.dataset.t&&!a.querySelector('.num.fixed'));
-  const ops=grp.map((a,i)=>({t:'heure',date:S.date,id:a.dataset.vid,val:fromMin(toMin(base)+15*i)}));
-  if(ops.length){w(ops);toast('Ordre modifié pour le '+fmtShort(S.date))} else render();
+  const vm={};visitesDu(S.date,'Toutes').forEach(v=>vm[v.id]=v);
+  const ops=[],acc={};grp.forEach((a,i)=>{const x=vm[a.dataset.vid];if(x){soinHourOps(x,c,fromMin(toMin(base)+15*i),null,acc);ops.push(...clearDayH(x.id))}});ops.unshift(...accOps(acc));
+  if(ops.length){w(ops);toast('Ordre modifié pour tous les jours')} else render();
 }
 document.addEventListener('pointerup',dgEnd);
 document.addEventListener('pointercancel',dgEnd);

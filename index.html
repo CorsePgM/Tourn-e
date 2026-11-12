@@ -258,6 +258,7 @@ form.f{display:flex;flex-direction:column;gap:12px}
 .tcname.hid{opacity:.8;border-style:dashed}
 .num.fixed{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}.num[data-act]{cursor:pointer}
 .detail .fullname{font-family:var(--f-display);font-weight:800;font-size:1.15rem;line-height:1.25;overflow-wrap:anywhere}
+.jc{display:flex;flex-direction:column;gap:6px;margin-top:8px}.jc .chk{display:flex;gap:8px;align-items:center;font-size:.9rem;font-weight:600}.jc .chk input{width:20px;height:20px}
 .tcbtns{display:flex;gap:8px;position:sticky;bottom:calc(-20px - env(safe-area-inset-bottom,0px));background:var(--bg);padding:8px 0 calc(20px + env(safe-area-inset-bottom,0px));margin-bottom:calc(-20px - env(safe-area-inset-bottom,0px))}.tcbtns .btn{flex:1 1 0;padding:9px 10px;font-size:.88rem;min-height:0;line-height:1.2}.tcbtns .btn[disabled]{opacity:.45}
 .tcnone{color:var(--muted);font-size:.9rem;padding:4px 2px}
 .pksheet{max-height:88%;overflow:hidden;display:flex;flex-direction:column}
@@ -352,9 +353,9 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 <div id="toast" class="toast" hidden></div>
 <div id="pending" class="pending" hidden role="status"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>window.__BUILD="12/11 22:03"</script>
-<script src="runtime.js?v=12112203"></script>
-<script src="pdf.js?v=12112203"></script>
+<script>window.__BUILD="12/11 22:06"</script>
+<script src="runtime.js?v=12112206"></script>
+<script src="pdf.js?v=12112206"></script>
 <script>
 (function(){
 const JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -525,12 +526,13 @@ function visitesDu(d,tournee){
     const p=S.patients[s.patientId];
     if(!p) return false;
     if(s.exceptionnel){if(s.date!==d) return false}
-    else if(!cadenceOk(s,d,wd)) return false;
+    else if(!cadenceOk(s,d,wd)&&!(s.joursC&&(!s.cadence||s.cadence==='sem')&&Object.values(s.joursC).some(j=>j&&j[wd]))) return false;
     if(s.debut&&s.debut>d) return false;
     if(s.fin&&s.fin<d) return false;
     return true;
   }).flatMap(([id,s])=>{const p0=S.patients[s.patientId];
-    return creneauxOf(s).map(c=>{const t=tourOfV(s.patientId,c,d),df=defTour(s.patientId,c),p=t===p0.tournee&&df===p0.tournee?p0:Object.assign({},p0,{tournee:t},t!==df?{_defT:df}:{});
+    /* jours propres à un créneau (ex. tous les matins, mais le soir seulement lundi et jeudi) */
+    return creneauxOf(s).filter(c=>s.exceptionnel||!s.joursC||(s.cadence&&s.cadence!=='sem')?true:(s.joursC[c]?!!s.joursC[c][wd]:!!(s.jours&&s.jours[wd]))).map(c=>{const t=tourOfV(s.patientId,c,d),df=defTour(s.patientId,c),p=t===p0.tournee&&df===p0.tournee?p0:Object.assign({},p0,{tournee:t},t!==df?{_defT:df}:{});
       return {sid:id,s:Object.assign({},s,{creneau:c,heure:heureOf(s,c)}),p}}).filter(x=>!tournee||tournee==='Toutes'||x.p.tournee===tournee);})
    .reduce((acc,x)=>{ /* un seul passage par patient et par créneau : les soins s'ajoutent au même passage */
      const key=x.s.patientId+'@'+(x.s.creneau||'Matin'),m=acc.map[key];
@@ -1044,6 +1046,7 @@ function viewPatient(id,p){
   h+=ss.length?ss.map(([sid,s])=>{const o=ordo(s);return `<div class="soinitem">
     <div class="row"><b>${esc((s.soins||[]).filter(Boolean).join(' + ')||'Soin')}</b>${S.canWrite?`<button class="linkbtn" data-act="editsoin" data-id="${sid}">Modifier</button>`:''}</div>
     <div class="row"><span style="color:var(--muted);font-size:.9rem">${esc(creneauxOf(s).map(c=>c+(heureOf(s,c)?' '+heureOf(s,c):'')).join(' + '))}</span>${cadenceLabel(s)?`<span class="cadlbl">${esc(cadenceLabel(s))}</span>`:`<span class="jours">${JOURS.map((j,i)=>`<span class="${s.jours&&s.jours[i]?'on':''}" title="${j}">${j[0]}</span>`).join('')}</span>`}</div>
+    ${Object.entries(s.joursC||{}).map(([c,js])=>`<div class="row"><span style="color:var(--muted);font-size:.9rem">${esc(c)} seulement</span><span class="jours">${JOURS.map((j,i)=>`<span class="${js[i]?'on':''}" title="${j}">${j[0]}</span>`).join('')}</span></div>`).join('')}
     <div class="row"><span style="color:var(--muted);font-size:.85rem">Ordonnance ${s.debut?'du '+esc(fmtShort(s.debut)):''} ${s.fin?'au '+esc(fmtShort(s.fin)):''}</span><span class="status ${o.k}">${esc(o.label)}</span></div></div>`}).join(''):'<span style="color:var(--muted)">Aucun soin programmé.</span>';
   h+='</div>';
   if(ex.length){h+=`<div class="card"><h2>Passages exceptionnels</h2>${ex.map(([sid,s])=>`<div class="row" style="display:flex;justify-content:space-between;gap:8px;align-items:center"><span style="min-width:0"><b>${esc(fmtShort(s.date))}</b> · ${esc(creneauxOf(s).map(c=>c+(heureOf(s,c)?' '+heureOf(s,c):'')).join(' + '))} · ${esc((s.soins||[]).filter(Boolean).join(' + '))}</span>${S.canWrite?`<button class="linkbtn" style="color:var(--bad)" data-act="delexc" data-id="${sid}">Retirer</button>`:''}</div>`).join('')}</div>`;}
@@ -1079,6 +1082,13 @@ function formPatient(p){
     <div class="err" id="ferr" hidden></div>
     <div class="formbtns"><button type="button" class="btn ghost" data-act="${M.excDraft?'backexc':M.bilDraft?'backbil':M.pid?'backview':'close'}">${M.excDraft||M.bilDraft?'Retour':'Annuler'}</button><button class="btn">${M.excDraft||M.bilDraft?'Créer et programmer':'Enregistrer'}</button></div></form>`;
 }
+/* jours différents pour un créneau : « le soir, seulement certains jours » */
+function jcFields(cs,jc,base){
+  if(cs.length<2) return '';
+  return `<small class="gpshint">Si un passage ne se fait pas tous ces jours-là, cochez-le ci-dessous et choisissez ses jours.</small>`+cs.map(c=>{const on=!!jc[c],js=jc[c]||base||[];
+    return `<div class="jc"><label class="chk"><input type="checkbox" id="f_jcon_${c}" ${on?'checked':''}><span>Le ${c.toLowerCase()} : seulement certains jours</span></label>
+    <div class="daypick" id="f_jcd_${c}" ${on?'':'hidden'}>${JOURS.map((j,i)=>`<label><input type="checkbox" id="f_jc_${c}_${i}" ${js[i]?'checked':''}><span>${j}</span></label>`).join('')}</div></div>`}).join('');
+}
 function formSoin(s){
   const ex=(s.soins||[]).filter(Boolean),n=Math.min(10,Math.max(5,ex.length+2));
   const ls=ex.concat(Array(10).fill('')).slice(0,n);
@@ -1089,7 +1099,8 @@ function formSoin(s){
       <div class="grid2" id="f_heures">${heuresFields(cs,hs)}</div><small class="gpshint">Heure laissée vide : le patient est placé à la suite, par tranches de 15 min (dès 6h00 le matin).</small>`})()}
     ${(()=>{const cad=s.cadence||'sem';return `<label class="field"><span>Fréquence</span><select id="f_cad">${CADS.map(([v,l])=>`<option value="${v}" ${v===cad?'selected':''}>${l}</option>`).join('')}</select></label>
     <div id="f_depbox" ${cad==='sem'?'hidden':''}>${fld('f_dep','À partir du (premier passage)',s.depart||s.debut||today(),'date')}</div>`})()}
-    <div class="field" id="f_joursbox" ${s.cadence&&s.cadence!=='sem'?'hidden':''}><span>Jours de passage</span><div class="daypick">${JOURS.map((j,i)=>`<label><input type="checkbox" id="f_j${i}" ${s.jours&&s.jours[i]?'checked':''}><span>${j}</span></label>`).join('')}</div></div>
+    <div class="field" id="f_joursbox" ${s.cadence&&s.cadence!=='sem'?'hidden':''}><span>Jours de passage</span><div class="daypick">${JOURS.map((j,i)=>`<label><input type="checkbox" id="f_j${i}" ${s.jours&&s.jours[i]?'checked':''}><span>${j}</span></label>`).join('')}</div>
+      <div id="f_jcbox">${jcFields(creneauxOf(s),s.joursC||{},s.jours)}</div></div>
     <div class="grid2">${fld('f_debut','Début ordonnance',s.debut,'date')}${fld('f_fin','Fin ordonnance',s.fin,'date')}</div>
     <div class="err" id="ferr" hidden></div>
     <div class="formbtns">${M.sid&&!M.add?'<button type="button" class="btn danger" data-act="delsoin" style="margin-right:auto">Supprimer</button>':''}<button type="button" class="btn ghost" data-act="backview">Annuler</button><button class="btn">Enregistrer</button></div>
@@ -1391,7 +1402,10 @@ async function saveSoin(){
   if(!soins.length){showErr('Indiquez au moins un soin.');return}
   const cadence=val('f_cad')||'sem', depart=cadence==='sem'?null:(val('f_dep')||today());
   const jours=cadence==='sem'?JOURS.map((j,i)=>document.getElementById('f_j'+i).checked?1:0):null;
-  if(cadence==='sem'&&!jours.some(Boolean)){showErr('Cochez au moins un jour de passage.');return}
+  const csel=(val('f_creneau')||'Matin').split('+'),joursC={};
+  if(cadence==='sem'&&csel.length>1)csel.forEach(c=>{const o=document.getElementById('f_jcon_'+c);if(o&&o.checked)joursC[c]=JOURS.map((j,i)=>document.getElementById('f_jc_'+c+'_'+i).checked?1:0)});
+  for(const c in joursC)if(!joursC[c].some(Boolean)){showErr('Cochez au moins un jour pour le passage du '+c.toLowerCase()+'.');return}
+  if(cadence==='sem'&&!jours.some(Boolean)&&!csel.every(c=>joursC[c])){showErr('Cochez au moins un jour de passage.');return}
   const debut=val('f_debut'),fin=val('f_fin');
   if(debut&&fin&&fin<debut){showErr('La fin d\'ordonnance est avant le début.');return}
   const id=M.sid||uid();
@@ -1400,6 +1414,7 @@ async function saveSoin(){
   const keepS=S.soins;S.soins=others;
   try{cs.forEach(c=>{if(!hs[c])hs[c]=heureExistante(M.pid,c,next7(jours))||nextSlot((S.patients[M.pid]||{}).tournee,c,next7(jours))})}finally{S.soins=keepS}
   const obj={patientId:M.pid,soins,creneau:cs[0],creneaux:cs,heures:hs,heure:hs[cs[0]]||null,jours,cadence,depart,debut:debut||null,fin:fin||null};
+  if(Object.keys(joursC).length)obj.joursC=joursC;
   if(await w([{t:'set',path:'soins/'+id,data:obj}])){toast('Soin enregistré');openModal({pid:M.pid,mode:'view'})}
 }
 async function saveBilan(){
@@ -1503,7 +1518,11 @@ document.addEventListener('change',e=>{
   if(el.id==='datepick'&&el.value){setDate(el.value);return}
   if(el.id==='f_cad'){const sem=el.value==='sem';document.getElementById('f_joursbox').hidden=!sem;document.getElementById('f_depbox').hidden=sem;return}
   if(el.id==='f_xcreneau'){const box=document.getElementById('f_xheures');if(box){const hs={};CRENEAUX.forEach(c=>{const i=document.getElementById('f_xh_'+c);if(i)hs[c]=i.value});box.innerHTML=xheuresFields(el.value.split('+'),hs)}return}
-  if(el.id==='f_creneau'){const box=document.getElementById('f_heures');if(box){const hs={};CRENEAUX.forEach(c=>{const i=document.getElementById('f_h_'+c);if(i)hs[c]=i.value});box.innerHTML=heuresFields(el.value.split('+'),hs)}return}
+  if(el.id&&el.id.startsWith('f_jcon_')){const b=document.getElementById('f_jcd_'+el.id.slice(7));if(b)b.hidden=!el.checked;return}
+  if(el.id==='f_creneau'){const box=document.getElementById('f_heures');if(box){const hs={};CRENEAUX.forEach(c=>{const i=document.getElementById('f_h_'+c);if(i)hs[c]=i.value});box.innerHTML=heuresFields(el.value.split('+'),hs)}
+    const jb=document.getElementById('f_jcbox');if(jb){const jc={};CRENEAUX.forEach(c=>{const o=document.getElementById('f_jcon_'+c);if(o&&o.checked)jc[c]=JOURS.map((j,i)=>document.getElementById('f_jc_'+c+'_'+i).checked?1:0)});
+      jb.innerHTML=jcFields(el.value.split('+'),jc,JOURS.map((j,i)=>document.getElementById('f_j'+i).checked?1:0))}
+    return}
   if((el.id==='f_efrom'||el.id==='f_eto')&&M&&el.value){
     M[el.id==='f_efrom'?'from':'to']=el.value;
     if(M.from>M.to){const t=M.from;M.from=M.to;M.to=t}
